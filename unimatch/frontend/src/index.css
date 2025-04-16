@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+/* Basic Reset & Box Sizing */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Roboto', sans-serif;
+  line-height: 1.6;
+  background-color: #f8f9fa; /* Lighter gray */
+  color: #343a40; /* Darker text */
+  margin: 0; /* Ensure no default body margin */
+}
+
+#root {
+  /* Let App.jsx handle main container padding */
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto; /* Center container */
+  padding: 0 20px; /* Add horizontal padding */
+}
+
+h1, h2, h3 {
+  color: #495057; /* Slightly muted heading color */
+  margin-bottom: 0.75rem;
+}
+
+a {
+  color: #007bff; /* Standard link blue */
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+/* Basic Button Styling */
+button {
+  display: inline-block;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s ease-in-out;
+}
+
+button:hover:not(:disabled) {
+  background: #0056b3; /* Darker blue on hover */
+}
+
+button:disabled {
+  background-color: #6c757d; /* Gray when disabled */
+  cursor: not-allowed;
+}
+
+/* Basic Form Styling */
+form div {
+  margin-bottom: 15px;
+}
+
+form label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #495057;
+}
+
+form input[type="text"],
+form input[type="email"],
+form input[type="password"],
+form input[type="number"],
+form textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ced4da; /* Light gray border */
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+form textarea {
+    resize: vertical; /* Allow vertical resize */
+}
+
+form input:focus,
+form textarea:focus {
+  outline: none;
+  border-color: #80bdff; /* Blue border on focus */
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Utility Classes (Optional) */
+.text-danger {
+  color: #dc3545; /* Red for errors */
+}
+.text-success {
+  color: #28a745; /* Green for success */
+}
+
+/* Navbar Styling */
+.navbar {
+  background-color: #343a40; /* Dark background */
+  padding: 0.8rem 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.navbar-brand {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.navbar-brand:hover {
+  color: #f8f9fa;
+  text-decoration: none;
+}
+
+.navbar-nav {
+  display: flex;
+  align-items: center;
+}
+
+.navbar-nav li {
+  margin-left: 1rem; /* Spacing between nav items */
+}
+
+.nav-link {
+  color: #adb5bd; /* Lighter gray for links */
+  text-decoration: none;
+  padding: 0.5rem;
+  transition: color 0.2s ease-in-out;
+}
+
+.nav-link:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
+.nav-button {
+  background: #007bff;
+  color: #fff;
+  border: none;
+  padding: 8px 15px; /* Slightly smaller padding */
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-left: 1rem;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.nav-button:hover {
+  background: #0056b3;
+}
