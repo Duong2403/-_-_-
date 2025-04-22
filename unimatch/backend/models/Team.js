@@ -23,6 +23,17 @@ const TeamSchema = new mongoose.Schema({
     type: String,
     maxlength: [500, 'Description cannot be more than 500 characters'],
   },
+  purpose: { // Added field
+    type: String,
+    enum: ['Study Group', 'Project Team', 'Social Club', 'Competition Team', 'Other'],
+    default: 'Other',
+  },
+  interests: [String], // Added field - Array of strings
+  meetingPreference: { // Added field
+    type: String,
+    enum: ['Online', 'In-Person', 'Hybrid', 'Flexible'],
+    default: 'Flexible',
+  },
   // Optional: Status field (e.g., 'forming', 'active', 'matched')
   status: {
     type: String,
@@ -40,10 +51,10 @@ const TeamSchema = new mongoose.Schema({
   },
 });
 
-// Ensure members array is not empty
-TeamSchema.path('members').validate(function (value) {
-  return value.length > 0;
-}, 'Team must have at least one member.');
+// // Ensure members array is not empty (REMOVED - Handled in leave/delete logic)
+// TeamSchema.path('members').validate(function (value) {
+//   return value.length > 0;
+// }, 'Team must have at least one member.');
 
 // Optional: Add a pre-save hook to ensure all members are from the same university
 // This might be better handled in the route controller logic for clarity

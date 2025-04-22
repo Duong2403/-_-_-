@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom'; // Import Link
 
 const MatchingPage = () => {
     const { user } = useAuth();
@@ -127,12 +128,25 @@ const MatchingPage = () => {
 
     if (loadingMyTeams) return <p>Loading your teams...</p>;
 
+    // Added Link import, so this should work now
     if (myTeams.length === 0) return <p>You need to be part of a team to find matches. <Link to="/teams">Go to Teams</Link></p>;
 
-    // Filter match requests for display
-    const incomingPending = matchRequests.filter(m => m.status === 'pending' && m.receivingTeam._id === selectedTeamId);
-    const outgoingPending = matchRequests.filter(m => m.status === 'pending' && m.requestingTeam._id === selectedTeamId);
-    const acceptedMatches = matchRequests.filter(m => m.status === 'accepted');
+    // Filter match requests for display - Added null checks for teams
+    const incomingPending = matchRequests.filter(m =>
+        m.status === 'pending' &&
+        m.receivingTeam?._id === selectedTeamId // Check if receivingTeam exists before accessing _id
+    );
+    const outgoingPending = matchRequests.filter(m =>
+        m.status === 'pending' &&
+        m.requestingTeam?._id === selectedTeamId // Check if requestingTeam exists before accessing _id
+    );
+    // Filter accepted matches more defensively, ensuring teams are populated
+    const acceptedMatches = matchRequests.filter(m =>
+        m && // Check if match object exists
+        m.status === 'accepted' &&
+        m.requestingTeam && // Check if requestingTeam object exists
+        m.receivingTeam    // Check if receivingTeam object exists
+    );
     // Add rejected/cancelled if needed
 
   return (
@@ -210,12 +224,45 @@ const MatchingPage = () => {
                <h3>Accepted Matches</h3>
                 {acceptedMatches.length > 0 ? (
                    <ul>
-                       {acceptedMatches.map(match => (
-                           <li key={match._id}>
-                               Matched with: <strong>{match.requestingTeam._id === selectedTeamId ? match.receivingTeam.name : match.requestingTeam.name}</strong>
-                               {/* Add link to chat later */}
-                           </li>
-                       ))}
+                       {acceptedMatches.map(match => {
+                           // Determine the other team safely with explicit null checks
+                           let otherTeamName = 'Unknown/Deleted Team';
+                           // Check if BOTH team objects exist after population
+                           if (match.requestingTeam && match.receivingTeam) {
+                               if (match.requestingTeam._id === selectedTeamId) {
+                                   otherTeamName = match.receivingTeam.name;
+                               } else {
+                                   otherTeamName = match.requestingTeam.name;
+                               }
+                           } else {
+                               // Log if one or both teams are missing (likely deleted)
+                               console.warn(`Match ${match._id} references a deleted team.`);
+                           }
+
+                           // Determine the other team's ID for linking
+                           let otherTeamId = null;
+                           if (match.requestingTeam && match.receivingTeam) {
+                               otherTeamId = match.requestingTeam._id === selectedTeamId
+                                   ? match.receivingTeam._id
+                                   : match.requestingTeam._id;
+                           }
+
+                           return (
+                               <li key={match._id}>
+                                   Matched with:{' '}
+                                   {otherTeamId ? (
+                                       <Link to={`/teams/${otherTeamId}`}>
+                                           <strong>{otherTeamName}</strong>
+                                       </Link>
+                                   ) : (
+                                       <strong>{otherTeamName}</strong>
+                                   )}
+                                   {' '} {/* Add space */}
+                                   {/* Add link to chat later */}
+                                   {/* Example: <Link to={`/chat/${match._id}`}>Chat</Link> */}
+                               </li>
+                           );
+                       })}
                    </ul>
                ) : <p>No accepted matches yet.</p>}
            </>

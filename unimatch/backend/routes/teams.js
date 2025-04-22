@@ -8,28 +8,36 @@ const { protect } = require('../middleware/authMiddleware'); // Import protect m
 // @route   POST /api/teams
 // @access  Private
 router.post('/', protect, async (req, res, next) => { // Added next
-  const { name, description } = req.body;
+  // Add new fields to destructuring
+  const { name, description, purpose, interests, meetingPreference, initialMemberEmails } = req.body; // Added initialMemberEmails
   const userId = req.user.id; // User creating the team
 
   try {
-    const user = await User.findById(userId);
-    if (!user) {
-      // Should not happen if protect middleware works, but good check
-      return res.status(404).json({ message: 'User not found' });
+    const creator = await User.findById(userId);
+    if (!creator) {
+      return res.status(404).json({ message: 'Creator not found' });
     }
 
-    // Create the team with the creator as the first member
+    // Create the team with only the creator initially
     const newTeam = new Team({
       name,
       description,
-      university: user.university, // Team university is based on the creator
-      members: [userId],
+      purpose,
+      interests,
+      meetingPreference,
+      university: creator.university,
+      members: [userId], // Only creator initially
       createdBy: userId,
     });
 
-    const team = await newTeam.save();
+    const savedTeam = await newTeam.save(); // Renamed variable
 
-    res.status(201).json(team);
+    // Populate members before sending back
+    const populatedTeam = await Team.findById(savedTeam._id)
+                                    .populate('members', 'name email university')
+                                    .populate('createdBy', 'name email');
+
+    res.status(201).json(populatedTeam); // Send back populated team
 
   } catch (err) {
     console.error('Create Team Error:', err.message); // Keep logging the error
@@ -77,60 +85,72 @@ router.get('/:id', protect, async (req, res, next) => { // Added next
 
 
 // @desc    Add a member to a team
-// @route   PUT /api/teams/:id/members
-// @access  Private (Only team creator or existing members?) - Let's allow creator for now
-router.put('/:id/members', protect, async (req, res, next) => { // Added next
-    const { userIdToAdd } = req.body; // ID of the user to add
+// @route   PUT /api/teams/:id/invite
+// @access  Private (Only team creator) - Changed from adding member to inviting
+router.put('/:id/invite', protect, async (req, res, next) => {
+    const { inviteeId } = req.body; // ID of the user to invite
     const teamId = req.params.id;
-    const requesterId = req.user.id;
+    const inviterId = req.user.id;
+    const Invitation = require('../models/Invitation'); // Need Invitation model
 
     try {
         const team = await Team.findById(teamId);
-        if (!team) {
-            return res.status(404).json({ message: 'Team not found' });
+        const invitee = await User.findById(inviteeId);
+
+        // Validations
+        if (!team) return res.status(404).json({ message: 'Team not found.' });
+        if (!invitee) return res.status(404).json({ message: 'User to invite not found.' });
+
+        // Authorization: Check if inviter is the creator
+        if (!team.createdBy.equals(inviterId)) {
+             return res.status(403).json({ message: 'Only the team creator can send invitations.' });
         }
 
-        // Authorization: Check if the requester is the creator of the team
-        if (!team.createdBy.equals(requesterId)) {
-            return res.status(403).json({ message: 'Not authorized to add members to this team' });
+        // Check if invitee is already a member
+        if (team.members.some(member => member.equals(inviteeId))) {
+            return res.status(400).json({ message: 'User is already a member of this team.' });
         }
 
-        // Check if user to add exists and is from the same university
-        const userToAdd = await User.findById(userIdToAdd);
-        if (!userToAdd) {
-            return res.status(404).json({ message: 'User to add not found' });
-        }
-        if (userToAdd.university !== team.university) {
-            return res.status(400).json({ message: 'User must be from the same university as the team' });
+        // Check if invitee is from the same university
+        if (invitee.university !== team.university) {
+             return res.status(400).json({ message: `Invited user must be from the same university (${team.university}).` });
         }
 
-        // Check if user is already a member
-        if (team.members.some(member => member.equals(userIdToAdd))) {
-            return res.status(400).json({ message: 'User is already a member of this team' });
+        // Check for existing pending invitation
+        const existingInvite = await Invitation.findOne({ team: teamId, invitee: inviteeId, status: 'pending' });
+        if (existingInvite) {
+            return res.status(400).json({ message: 'An invitation is already pending for this user.' });
         }
 
-        // Add user to members array
-        team.members.push(userIdToAdd);
-        await team.save();
+        // Create and save invitation
+        const invitation = new Invitation({
+            team: teamId,
+            inviter: inviterId,
+            invitee: inviteeId,
+            status: 'pending'
+        });
+        await invitation.save();
 
-        const updatedTeam = await Team.findById(teamId).populate('members', 'name email university').populate('createdBy', 'name email');
-        res.json(updatedTeam);
+        // Populate for response
+        const populatedInvite = await Invitation.findById(invitation._id)
+            .populate('team', 'name')
+            .populate('inviter', 'name')
+            .populate('invitee', 'name');
+
+        res.status(201).json({ message: 'Invitation sent successfully.', invitation: populatedInvite });
 
     } catch (err) {
-        console.error('Add Team Member Error:', err.message);
-         if (err.kind === 'ObjectId') {
-             return res.status(404).json({ message: 'Team or User not found' });
-        }
-        next(err); // Pass error to middleware
+        next(err);
     }
 });
 
 
-// @desc    Update team details (name, description)
+// @desc    Update team details (name, description, etc.)
 // @route   PUT /api/teams/:id
 // @access  Private (Only team creator)
 router.put('/:id', protect, async (req, res, next) => { // Added next
-    const { name, description } = req.body;
+    // Add new fields to destructuring
+    const { name, description, purpose, interests, meetingPreference } = req.body;
     const teamId = req.params.id;
     const requesterId = req.user.id;
 
@@ -148,6 +168,9 @@ router.put('/:id', protect, async (req, res, next) => { // Added next
         // Update fields if provided
         if (name) team.name = name;
         if (description) team.description = description;
+        if (purpose) team.purpose = purpose; // Update new field
+        if (interests) team.interests = interests; // Update new field (expects array)
+        if (meetingPreference) team.meetingPreference = meetingPreference; // Update new field
         // Potentially add status updates here too if needed
 
         const updatedTeam = await team.save();
@@ -247,6 +270,58 @@ router.delete('/:id', protect, async (req, res, next) => { // Added next
     } catch (err) {
         console.error('Delete Team Error:', err.message);
          if (err.kind === 'ObjectId') {
+             return res.status(404).json({ message: 'Team not found' });
+        }
+        next(err); // Pass error to middleware
+    }
+});
+
+// @desc    Leave a team
+// @route   DELETE /api/teams/:id/leave
+// @access  Private (Team members only, except creator if last member)
+router.delete('/:id/leave', protect, async (req, res, next) => {
+    const teamId = req.params.id;
+    const userId = req.user.id; // User requesting to leave
+
+    try {
+        let team = await Team.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ message: 'Team not found' });
+        }
+
+        // Check if user is actually a member
+        const memberIndex = team.members.map(member => member.toString()).indexOf(userId.toString());
+        if (memberIndex === -1) {
+             return res.status(400).json({ message: 'You are not a member of this team.' });
+        }
+
+        // Prevent creator from leaving if they are the last member (they should delete the team)
+        if (team.createdBy.equals(userId) && team.members.length === 1) {
+            return res.status(400).json({ message: 'Creator cannot leave the team as the last member. Please delete the team instead.' });
+        }
+
+        // Remove user from members array
+        team.members.splice(memberIndex, 1);
+
+        // Optional: If the leaving user was the creator, assign a new creator?
+        // Or maybe prevent creator from leaving unless team is empty? (Current logic prevents leaving if last member)
+        // For simplicity, we'll just remove them for now.
+
+        await team.save();
+
+        // Check if team is now empty, if so, delete it? Or leave it empty?
+        if (team.members.length === 0) {
+            await Team.deleteOne({ _id: teamId });
+             console.log(`Team ${teamId} deleted as it became empty after member left.`);
+             return res.json({ message: 'Successfully left team. Team was deleted as it became empty.' });
+        } else {
+            const updatedTeam = await Team.findById(teamId).populate('members', 'name email university').populate('createdBy', 'name email');
+            res.json({ message: 'Successfully left team.', team: updatedTeam });
+        }
+
+    } catch (err) {
+        console.error('Leave Team Error:', err.message);
+        if (err.kind === 'ObjectId') {
              return res.status(404).json({ message: 'Team not found' });
         }
         next(err); // Pass error to middleware

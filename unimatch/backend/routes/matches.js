@@ -105,8 +105,17 @@ router.get('/team/:teamId', protect, async (req, res, next) => {
                 { receivingTeam: teamId }
             ]
         })
-        .populate('requestingTeam', 'name university')
-        .populate('receivingTeam', 'name university')
+        // Populate team details including members
+        .populate({
+            path: 'requestingTeam',
+            select: 'name university members', // Include members
+            populate: { path: 'members', select: 'name email _id' } // Populate member details (optional, but useful)
+        })
+        .populate({
+            path: 'receivingTeam',
+            select: 'name university members', // Include members
+            populate: { path: 'members', select: 'name email _id' } // Populate member details (optional, but useful)
+        })
         .sort({ createdAt: -1 }); // Sort by most recent
 
         res.json(matches);

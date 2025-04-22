@@ -8,8 +8,10 @@ import RegisterPage from './components/Register'; // Using component directly fo
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import TeamsPage from './pages/TeamsPage';
+import TeamDetailPage from './pages/TeamDetailPage'; // Import the new page
 import MatchingPage from './pages/MatchingPage';
 import ChatPage from './pages/ChatPage';
+import PublicProfilePage from './pages/PublicProfilePage'; // Import the new page
 
 // Helper Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -48,8 +50,10 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/teams" element={<TeamsPage />} />
+            <Route path="/teams/:teamId" element={<TeamDetailPage />} /> {/* Add route for team detail */}
             <Route path="/matching" element={<MatchingPage />} />
             <Route path="/chat" element={<ChatPage />} />
+            <Route path="/users/:userId" element={<PublicProfilePage />} /> {/* Add route for public profile */}
             {/* Add more protected routes here */}
           </Route>
 

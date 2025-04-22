@@ -151,6 +151,66 @@ router.post('/me/photos', protect, upload.single('photo'), async (req, res, next
     res.status(400).json({ message: error.message });
 });
 
+// @desc    Search for users by name/email within a specific university
+// @route   GET /api/users/search?q=searchText&university=uniName
+// @access  Private
+router.get('/search', protect, async (req, res, next) => {
+    const searchQuery = req.query.q || '';
+    const university = req.query.university || '';
+    const currentUserId = req.user.id; // Don't include the logged-in user in search results
+
+    if (!university) {
+        return res.status(400).json({ message: 'University parameter is required for search.' });
+    }
+    if (!searchQuery) {
+         return res.json([]); // Return empty if search query is empty
+    }
+
+    try {
+        // Create a regex for case-insensitive search
+        const searchRegex = new RegExp(searchQuery, 'i');
+
+        // Find users matching name or email in the specified university, excluding the current user
+        const users = await User.find({
+            university: university, // Match university exactly
+            _id: { $ne: currentUserId }, // Exclude self
+            $or: [
+                { name: searchRegex },
+                { email: searchRegex }
+            ]
+        })
+        .select('name email _id university') // Select only necessary fields
+        .limit(10); // Limit results for performance
+
+        res.json(users);
+
+    } catch (err) {
+        next(err);
+    }
+});
+
+// @desc    Get public profile of a user by ID
+// @route   GET /api/users/:userId/profile
+// @access  Private (Any logged-in user can view public profiles)
+router.get('/:userId/profile', protect, async (req, res, next) => {
+    try {
+        const user = await User.findById(req.params.userId)
+            .select('name university bio photos createdAt'); // Select only public fields
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.json(user);
+
+    } catch (err) {
+         if (err.kind === 'ObjectId') {
+             return res.status(404).json({ message: 'User not found' });
+        }
+        next(err);
+    }
+});
+
 
 // Optional: Route to delete a photo
 // @desc    Delete a photo from user profile

@@ -2,46 +2,74 @@ import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api'; // To fetch accepted matches
-
 import { Link } from 'react-router-dom'; // Import Link
+
+// Import chat components
+import RoomList from '../components/chat/RoomList';
+import MessagesView from '../components/chat/MessagesView';
+import GroupInfo from '../components/chat/GroupInfo';
 
 const ChatPage = () => {
     const { user, token } = useAuth();
     const [socket, setSocket] = useState(null);
-    const [myTeams, setMyTeams] = useState([]); // Add state for user's teams
+    const [myTeams, setMyTeams] = useState([]); // Needed for getOtherTeamName
     const [acceptedMatches, setAcceptedMatches] = useState([]);
-    const [selectedMatch, setSelectedMatch] = useState(null); // The match object for the current chat
+    const [selectedMatch, setSelectedMatch] = useState(null);
     const [messages, setMessages] = useState([]);
-    const [newMessage, setNewMessage] = useState('');
+    const [meetingProposals, setMeetingProposals] = useState([]); // State for meeting proposals
     const [error, setError] = useState('');
-    const messagesEndRef = useRef(null); // To scroll to bottom
     const selectedMatchIdRef = useRef(null); // Ref to hold current selected match ID
+
+    // --- Helper Function ---
+    const getOtherTeamName = (match, userTeams) => {
+        if (!match || !user || !userTeams) return 'Unknown Team';
+        try {
+            const myTeam = userTeams.find(t => match.requestingTeam?._id === t._id || match.receivingTeam?._id === t._id);
+            if (!myTeam) return 'Unknown Team';
+
+            if (match.requestingTeam?._id === myTeam._id) {
+                return match.receivingTeam?.name || 'Unknown/Deleted Team';
+            } else if (match.receivingTeam?._id === myTeam._id) {
+                return match.requestingTeam?.name || 'Unknown/Deleted Team';
+            } else {
+                return 'Unknown Team';
+            }
+        } catch (e) {
+             console.error("Error in getOtherTeamName:", e, match);
+             return 'Error Determining Name';
+        }
+    };
 
     // --- Fetch Accepted Matches ---
     useEffect(() => {
         const fetchAcceptedMatches = async () => {
+            if (!user) return;
             setError('');
             try {
-                // Fetch user's teams first
                 const teamsRes = await api.get('/teams');
-                setMyTeams(teamsRes.data); // Set the myTeams state
+                setMyTeams(teamsRes.data);
                 const userTeamIds = teamsRes.data.map(t => t._id);
-
                 if (userTeamIds.length === 0) {
                     setAcceptedMatches([]);
-                    // No need to fetch matches if user has no teams
                     return;
                 }
 
-                // Fetch matches for all teams (could be inefficient, better backend endpoint needed)
                 let allMatches = [];
                 for (const teamId of userTeamIds) {
-                    const matchRes = await api.get(`/matches/team/${teamId}`);
-                    allMatches = allMatches.concat(matchRes.data);
+                    if (teamId) {
+                         try {
+                            // Fetch matches and populate necessary fields including members
+                            const matchRes = await api.get(`/matches/team/${teamId}`);
+                            allMatches = allMatches.concat(matchRes.data);
+                         } catch (matchErr) {
+                             console.error(`Error fetching matches for team ${teamId}:`, matchErr);
+                         }
+                    }
                 }
 
-                // Filter for unique accepted matches
-                const accepted = allMatches.filter(m => m.status === 'accepted');
+                const accepted = allMatches.filter(m =>
+                    m && m.status === 'accepted' && m.requestingTeam && m.receivingTeam
+                );
                 const uniqueAccepted = accepted.reduce((acc, current) => {
                     const x = acc.find(item => item._id === current._id);
                     if (!x) {
@@ -52,51 +80,38 @@ const ChatPage = () => {
                 }, []);
 
                 setAcceptedMatches(uniqueAccepted);
-                // Select the first match by default if available
                 if (uniqueAccepted.length > 0 && !selectedMatch) {
                     setSelectedMatch(uniqueAccepted[0]);
+                } else if (uniqueAccepted.length === 0) {
+                    setSelectedMatch(null);
                 }
 
             } catch (err) {
-                console.error("Error fetching accepted matches:", err);
-                setError(err.response?.data?.message || 'Failed to fetch matches.');
+                console.error("Error fetching accepted matches/teams:", err);
+                setError(err.response?.data?.message || 'Failed to fetch matches or teams.');
             }
         };
         fetchAcceptedMatches();
-    }, [user]); // Fetch when user is available
+    }, [user]);
 
-    // --- Socket Connection ---
+    // --- Socket Connection & Event Listeners ---
     useEffect(() => {
-        if (!token) return; // Don't connect if not logged in
+        if (!token) return;
 
-        // Connect to the Socket.IO server
-        // Pass token for authentication
-        const newSocket = io('http://localhost:5000', { // Use your backend server URL
-            auth: { token }
-        });
-
+        const newSocket = io('http://localhost:5000', { auth: { token } });
         setSocket(newSocket);
 
-        newSocket.on('connect', () => {
-            console.log('Socket connected:', newSocket.id);
-        });
-
+        newSocket.on('connect', () => console.log('Socket connected:', newSocket.id));
         newSocket.on('connect_error', (err) => {
             console.error('Socket connection error:', err.message);
             setError(`Socket connection failed: ${err.message}`);
         });
+        newSocket.on('disconnect', (reason) => console.log('Socket disconnected:', reason));
 
-        newSocket.on('disconnect', (reason) => {
-            console.log('Socket disconnected:', reason);
-            // Handle disconnection, maybe try to reconnect
-        });
-
-        // Listener for incoming messages
+        // Listener for chat messages
         newSocket.on('receiveMessage', (message) => {
             console.log('Message received:', message);
-            // Only add message if it belongs to the currently selected chat room
             setMessages((prevMessages) => {
-                // Use the ref to check against the *current* selected match ID
                 if (selectedMatchIdRef.current && message.matchId === selectedMatchIdRef.current) {
                     return [...prevMessages, message];
                 }
@@ -104,16 +119,48 @@ const ChatPage = () => {
             });
         });
 
-        // Cleanup on component unmount
+        // Listener for new meeting proposals
+        newSocket.on('meetingProposed', (proposedMeeting) => {
+            console.log('Meeting proposal received:', proposedMeeting);
+            if (selectedMatchIdRef.current && proposedMeeting.match?._id === selectedMatchIdRef.current) {
+                 setMeetingProposals(prev => [...prev, proposedMeeting]);
+            }
+        });
+
+        // Listener for meeting updates (accepted response, cancelled, etc.)
+        newSocket.on('meetingUpdated', (updatedMeeting) => {
+            console.log('Meeting update received:', updatedMeeting);
+            if (selectedMatchIdRef.current && updatedMeeting.match?._id === selectedMatchIdRef.current) {
+                setMeetingProposals(prev => {
+                    const index = prev.findIndex(m => m._id === updatedMeeting._id);
+                    if (index !== -1) {
+                        // Replace the old meeting with the updated one
+                        const newProposals = [...prev];
+                        newProposals[index] = updatedMeeting;
+                        return newProposals;
+                    } else {
+                        // If not found, maybe it was just proposed by this client? Add it.
+                        return [...prev, updatedMeeting];
+                    }
+                });
+            }
+        });
+
+        // Cleanup: remove listeners and disconnect
         return () => {
             console.log('Disconnecting socket...');
+            newSocket.off('connect');
+            newSocket.off('connect_error');
+            newSocket.off('disconnect');
+            newSocket.off('receiveMessage');
+            newSocket.off('meetingProposed');
+            newSocket.off('meetingUpdated');
             newSocket.disconnect();
         };
-    }, [token]); // Reconnect if token changes
+    }, [token]); // Only re-run if token changes
 
-    // --- Joining/Leaving Rooms & Updating Ref ---
+    // --- Joining/Leaving Rooms, Fetching History & Meetings ---
     useEffect(() => {
-        // Update the ref whenever selectedMatch changes
         selectedMatchIdRef.current = selectedMatch?._id || null;
 
         if (socket && selectedMatch) {
@@ -121,125 +168,76 @@ const ChatPage = () => {
             console.log(`Joining room: ${matchId}`);
             socket.emit('joinRoom', matchId);
 
-            // Fetch initial messages for this room
-            const fetchHistory = async () => {
-                setError(''); // Clear previous errors
+            const fetchChatData = async () => {
+                setError('');
+                setMessages([]);
+                setMeetingProposals([]);
                 try {
-                    const res = await api.get(`/messages/${matchId}`);
-                    setMessages(res.data); // Set initial messages
+                    const [historyRes, meetingsRes] = await Promise.all([
+                        api.get(`/messages/${matchId}`),
+                        api.get(`/meetings/match/${matchId}`)
+                    ]);
+                    setMessages(historyRes.data);
+                    setMeetingProposals(meetingsRes.data);
                 } catch (err) {
-                    console.error("Error fetching chat history:", err);
-                    setError(err.response?.data?.message || 'Failed to fetch chat history.');
-                    setMessages([]); // Clear messages on error
+                    console.error("Error fetching chat data:", err);
+                    setError(err.response?.data?.message || 'Failed to fetch chat data.');
+                    setMessages([]);
+                    setMeetingProposals([]);
                 }
             };
-            fetchHistory();
+            fetchChatData();
 
-
-            // Leave the previous room when selectedMatch changes
             return () => {
                 console.log(`Leaving room: ${matchId}`);
                 socket.emit('leaveRoom', matchId);
             };
+        } else {
+             setMessages([]);
+             setMeetingProposals([]);
         }
     }, [socket, selectedMatch]);
 
-     // --- Scroll to Bottom ---
-     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]); // Scroll whenever messages update
+    // --- Handlers ---
+    const handleSelectMatch = (match) => {
+        setSelectedMatch(match);
+    };
 
-    // --- Message Sending ---
-    const handleSendMessage = (e) => {
-        e.preventDefault();
-        if (!socket || !selectedMatch || !newMessage.trim()) return;
-
+    const handleSendMessage = (messageText) => {
+        if (!socket || !selectedMatch || !messageText) return;
         const messageData = {
             matchId: selectedMatch._id,
-            text: newMessage.trim(),
+            text: messageText,
         };
-
         socket.emit('sendMessage', messageData);
-        setNewMessage(''); // Clear input field
     };
 
     // --- Render ---
-    // Pass myTeams state into the helper function
-    const getOtherTeamName = (match, userTeams) => {
-        if (!match || !user || !userTeams) return 'Other Team';
-        // Find the team in the match that the current user is a member of
-        const myTeam = userTeams.find(t => t._id === match.requestingTeam._id || t._id === match.receivingTeam._id);
-        if (!myTeam) return 'Other Team'; // Should not happen if logic is correct
-
-        if (myTeam._id === match.requestingTeam._id) {
-            return match.receivingTeam.name;
-        } else {
-            return match.requestingTeam.name;
-        }
-    };
-
-
-  return (
-    <div>
-      <h1>Chat</h1>
-      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
-
-      {/* Match Selector */}
-      <div>
-        <label htmlFor="matchSelect">Select Chat: </label>
-        <select
-            id="matchSelect"
-            value={selectedMatch?._id || ''}
-            onChange={(e) => {
-                const match = acceptedMatches.find(m => m._id === e.target.value);
-                setSelectedMatch(match);
-            }}
-            disabled={acceptedMatches.length === 0}
-        >
-            <option value="" disabled>-- Select a Match --</option>
-            {acceptedMatches.map(match => (
-                <option key={match._id} value={match._id}>
-                    {/* Pass myTeams state to the helper function */}
-                    Chat with {getOtherTeamName(match, myTeams)}
-                </option>
-            ))}
-        </select>
-      </div>
-      <hr style={{ margin: '20px 0' }}/>
-
-      {/* Message Display Area */}
-      <div style={{ height: '400px', overflowY: 'scroll', border: '1px solid #ccc', marginBottom: '10px', padding: '10px' }}>
-        {selectedMatch ? (
-            messages.length > 0 ? (
-                messages.map((msg, index) => (
-                    <div key={index} style={{ marginBottom: '5px', textAlign: msg.sender._id === user._id ? 'right' : 'left' }}>
-                        <span style={{ fontSize: '0.8em', color: 'gray' }}>{msg.sender.name} ({new Date(msg.timestamp).toLocaleTimeString()})</span><br/>
-                        <span style={{ background: msg.sender._id === user._id ? '#dcf8c6' : '#eee', padding: '5px 8px', borderRadius: '7px', display: 'inline-block' }}>
-                            {msg.text}
-                        </span>
-                    </div>
-                ))
-            ) : <p>No messages yet for this chat.</p>
-        ) : <p>Please select a match to start chatting.</p>}
-         <div ref={messagesEndRef} /> {/* Element to scroll to */}
-      </div>
-
-      {/* Message Input Area */}
-      {selectedMatch && (
-        <form onSubmit={handleSendMessage} style={{ display: 'flex' }}>
-            <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type your message..."
-                style={{ flexGrow: 1, marginRight: '10px', padding: '8px' }}
-                disabled={!socket}
+    return (
+        <div className="chat-page-container" style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
+            {error && <p style={{ color: 'red', position: 'absolute', top: '70px', left: '20px' }}>Error: {error}</p>}
+            <RoomList
+                acceptedMatches={acceptedMatches}
+                selectedMatch={selectedMatch}
+                onSelectMatch={handleSelectMatch}
+                getOtherTeamName={getOtherTeamName}
+                myTeams={myTeams}
+                user={user}
             />
-            <button type="submit" disabled={!socket || !newMessage.trim()}>Send</button>
-        </form>
-      )}
-    </div>
-  );
+            <MessagesView
+                messages={messages}
+                selectedMatch={selectedMatch}
+                user={user}
+                onSendMessage={handleSendMessage}
+            />
+            <GroupInfo
+                selectedMatch={selectedMatch}
+                meetingProposals={meetingProposals}
+                api={api} // Pass api instance
+                // TODO: Pass a function to refresh proposals after cancel/respond if socket update isn't sufficient
+            />
+        </div>
+    );
 };
 
 export default ChatPage;

@@ -42,6 +42,9 @@ app.use('/api/users', require('./routes/users')); // Mount user routes
 app.use('/api/teams', require('./routes/teams')); // Mount team routes
 app.use('/api/matches', require('./routes/matches')); // Mount match routes
 app.use('/api/messages', require('./routes/messages')); // Mount message routes
+app.use('/api/invitations', require('./routes/invitations')); // Mount invitation routes
+app.use('/api/meetings', require('./routes/meetings')); // Mount meeting routes
+app.use('/api/reviews', require('./routes/reviews')); // Mount review routes
 
 // Basic route for testing (can be removed later)
 app.get('/', (req, res) => {
@@ -70,6 +73,9 @@ const io = new Server(server, {
     methods: ["GET", "POST"]
   }
 });
+
+// Make io accessible to routes AFTER it's initialized
+app.set('socketio', io);
 
 // Socket.IO Authentication Middleware
 io.use(async (socket, next) => {

@@ -6,6 +6,10 @@ import { Link } from 'react-router-dom'; // For linking to team details later
 const CreateTeamForm = ({ onCreateSuccess }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
+    const [purpose, setPurpose] = useState('Other'); // Default value
+    const [interests, setInterests] = useState(''); // Input as comma-separated string
+    const [meetingPreference, setMeetingPreference] = useState('Flexible'); // Default value
+    // const [initialMemberEmails, setInitialMemberEmails] = useState(''); // REMOVED state for emails
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -14,10 +18,25 @@ const CreateTeamForm = ({ onCreateSuccess }) => {
         setLoading(true);
         setError('');
         try {
-            const res = await api.post('/teams', { name, description });
+            // Convert comma-separated interests string to array, trimming whitespace
+            const interestsArray = interests.split(',').map(item => item.trim()).filter(item => item !== '');
+
+            const res = await api.post('/teams', {
+                name,
+                description,
+                purpose,
+                interests: interestsArray,
+                meetingPreference
+                // initialMemberEmails: initialMemberEmails.split(',').map(e => e.trim()).filter(e => e !== '') // REMOVED sending emails
+            });
             onCreateSuccess(res.data); // Pass new team data up
-            setName(''); // Clear form
+            // Clear form
+            setName('');
             setDescription('');
+            setPurpose('Other');
+            setInterests('');
+            setMeetingPreference('Flexible');
+            // setInitialMemberEmails(''); // REMOVED clearing emails input
         } catch (err) {
             console.error("Error creating team:", err);
             setError(err.response?.data?.message || 'Failed to create team.');
@@ -50,6 +69,47 @@ const CreateTeamForm = ({ onCreateSuccess }) => {
                     maxLength="500"
                 />
             </div>
+             {/* Purpose Dropdown */}
+             <div style={{ marginBottom: '10px' }}>
+                <label htmlFor="teamPurpose">Purpose: </label>
+                <select
+                    id="teamPurpose"
+                    value={purpose}
+                    onChange={(e) => setPurpose(e.target.value)}
+                >
+                    <option value="Study Group">Study Group</option>
+                    <option value="Project Team">Project Team</option>
+                    <option value="Social Club">Social Club</option>
+                    <option value="Competition Team">Competition Team</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+             {/* Interests Input */}
+             <div style={{ marginBottom: '10px' }}>
+                <label htmlFor="teamInterests">Interests (comma-separated): </label>
+                <input
+                    type="text"
+                    id="teamInterests"
+                    value={interests}
+                    onChange={(e) => setInterests(e.target.value)}
+                    placeholder="e.g., AI, Web Dev, Hiking"
+                />
+            </div>
+             {/* Meeting Preference Dropdown */}
+             <div style={{ marginBottom: '10px' }}>
+                <label htmlFor="teamMeetingPref">Meeting Preference: </label>
+                <select
+                    id="teamMeetingPref"
+                    value={meetingPreference}
+                    onChange={(e) => setMeetingPreference(e.target.value)}
+                >
+                    <option value="Online">Online</option>
+                    <option value="In-Person">In-Person</option>
+                    <option value="Hybrid">Hybrid</option>
+                    <option value="Flexible">Flexible</option>
+                </select>
+            </div>
+            {/* REMOVED Initial Members Input */}
             <button type="submit" disabled={loading}>
                 {loading ? 'Creating...' : 'Create Team'}
             </button>
@@ -100,12 +160,15 @@ const TeamsPage = () => {
           <ul>
             {teams.map(team => (
               <li key={team._id} style={{ border: '1px solid #eee', padding: '10px', marginBottom: '10px' }}>
-                {/* Link to a future TeamDetailPage */}
-                {/* <Link to={`/teams/${team._id}`}> */}
+                {/* Link the team name */}
+                <Link to={`/teams/${team._id}`}>
                   <strong>{team.name}</strong>
-                {/* </Link> */}
+                </Link>
                 <p>University: {team.university}</p>
                 <p>Description: {team.description || 'N/A'}</p>
+                <p>Purpose: {team.purpose}</p>
+                <p>Interests: {team.interests?.join(', ') || 'N/A'}</p>
+                <p>Meeting Preference: {team.meetingPreference}</p>
                 <p>Members: {team.members.length}</p> {/* Display member count for now */}
                 {/* Add more details or management buttons later */}
               </li>
