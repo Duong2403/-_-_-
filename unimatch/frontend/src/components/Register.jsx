@@ -24,26 +24,32 @@ function Register() {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError(''); // Clear previous errors first
     setSuccess('');
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-    if (!name || !email || !password || !age || !university) {
-        setError('Please fill in all fields');
+    // --- Validation Checks ---
+
+    // 1. Check required fields
+    if (!name || !email || !password || !confirmPassword || !age || !university) {
+        setError('Please fill in all required fields.');
         return;
     }
-    // Basic age check on frontend (backend has stricter validation)
+
+    // 2. Check password match
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    // 3. Basic age check on frontend (backend has stricter validation)
     if (parseInt(age, 10) < 19 || parseInt(age, 10) > 29) {
         setError('Age must be between 19 and 29');
          return;
      }
-      // Basic email check on frontend
-     const emailRegex = /^\w+([\.-]?\w+)*@(?:ac\.kr|edu)$/;
+     // 4. Basic email check on frontend - Check only for .ac.kr or .edu ending
+     const emailRegex = /\.(ac\.kr|edu)$/i; // Simpler check for ending only
      if (!emailRegex.test(email)) {
-         setError('Please use a valid university email (.ac.kr or .edu)');
+         setError('Email must end with .ac.kr or .edu');
          return;
      }
 

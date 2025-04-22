@@ -11,9 +11,9 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Please add an email'],
     unique: true,
     match: [
-      // Basic email format validation + common university domains (adjust as needed)
-      /^\w+([\.-]?\w+)*@(?:ac\.kr|edu)$/, // Example: Allows .ac.kr and .edu domains
-      'Please add a valid university email address (.ac.kr or .edu)',
+      // Simplified check for .ac.kr or .edu ending only
+      /\.(ac\.kr|edu)$/i,
+      'Email must end with .ac.kr or .edu',
     ],
   },
   password: {

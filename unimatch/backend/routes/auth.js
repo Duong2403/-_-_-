@@ -28,10 +28,10 @@ router.post('/register', async (req, res, next) => { // Added next
         return res.status(400).json({ message: 'User must be between 19 and 29 years old' });
     }
 
-    // Validate email domain (redundant due to schema validation in User model)
-    const emailRegex = /^\w+([\.-]?\w+)*@(?:ac\.kr|edu)$/;
+    // Validate email domain (simplified check for ending only)
+    const emailRegex = /\.(ac\.kr|edu)$/i; // Simpler check for ending only
     if (!emailRegex.test(email)) {
-        return res.status(400).json({ message: 'Please use a valid university email (.ac.kr or .edu)' });
+        return res.status(400).json({ message: 'Email must end with .ac.kr or .edu' });
     }
 
     // Create new user instance (password hashing is handled by pre-save hook in User model)
