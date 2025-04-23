@@ -202,8 +202,24 @@ const MatchingPage = () => {
                {incomingPending.length > 0 ? (
                    <ul>
                        {incomingPending.map(match => (
-                           <li key={match._id}>
-                               Request from: <strong>{match.requestingTeam.name}</strong>
+                           <li key={match._id} style={{ border: '1px solid #eee', padding: '10px', marginBottom: '10px' }}>
+                               Request from:{' '}
+                               {/* Link to the requesting team's profile */}
+                               <Link to={`/teams/${match.requestingTeam._id}`}>
+                                   <strong>{match.requestingTeam.name}</strong>
+                               </Link>
+                               {' '} {/* Add space */}
+                               ({match.requestingTeam.university})
+                               <p>{match.requestingTeam.description || 'No description'}</p>
+                               <p>Members:{' '}
+                                   {/* List members with links to their profiles */}
+                                   {match.requestingTeam.members.map((member, index) => (
+                                       <React.Fragment key={member._id}>
+                                           <Link to={`/users/${member._id}`}>{member.name}</Link>
+                                           {index < match.requestingTeam.members.length - 1 && ', '}
+                                       </React.Fragment>
+                                   ))}
+                               </p>
                                <button onClick={() => handleRespondRequest(match._id, 'accepted')} style={{ marginLeft: '10px', background: 'lightgreen' }}>Accept</button>
                                <button onClick={() => handleRespondRequest(match._id, 'rejected')} style={{ marginLeft: '5px', background: 'lightcoral' }}>Reject</button>
                            </li>
