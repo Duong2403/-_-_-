@@ -15,7 +15,7 @@ const MatchSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'accepted', 'rejected', 'cancelled'], // Possible statuses
+    enum: ['pending', 'accepted', 'rejected', 'cancelled', 'closed'], // Possible statuses
     default: 'pending',
     required: true,
     index: true,

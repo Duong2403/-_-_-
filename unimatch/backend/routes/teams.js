@@ -3,6 +3,7 @@ const router = express.Router();
 const Team = require('../models/Team'); // Adjust path as necessary
 const User = require('../models/User'); // Adjust path as necessary
 const { protect } = require('../middleware/authMiddleware'); // Import protect middleware
+const Match = require('../models/Match'); // Need Match model here for potential matches route
 
 // @desc    Create a new team
 // @route   POST /api/teams
@@ -216,7 +217,7 @@ router.delete('/:id/members/:memberId', protect, async (req, res, next) => { // 
         }
          // Prevent creator from removing themselves if they are the last member
         if (team.members.length <= 1 && isCreator) {
-             return res.status(400).json({ message: 'Creator cannot remove themselves as the last member. Delete the team instead.' });
+             return res.status(400).json({ message: 'Creator cannot remove themselves as the last member. Please delete the team instead.' });
         }
 
 
@@ -341,9 +342,12 @@ router.get('/:teamId/potential-matches', protect, async (req, res, next) => {
         // 1. Find the user's team to get its university and ensure user is a member
         const userTeam = await Team.findById(teamId);
         if (!userTeam) {
+            console.log(`Team with ID ${teamId} not found.`);
             return res.status(404).json({ message: 'Your team not found.' });
         }
+        console.log(`User's team: ${userTeam.name} (${userTeam.university})`);
         if (!userTeam.members.some(member => member.equals(userId))) {
+            console.log(`User ${userId} is not a member of team ${teamId}.`);
             return res.status(403).json({ message: 'You must be a member of this team.' });
         }
 
@@ -361,19 +365,38 @@ router.get('/:teamId/potential-matches', protect, async (req, res, next) => {
             excludedTeamIds.add(match.requestingTeam.toString());
             excludedTeamIds.add(match.receivingTeam.toString());
         });
+        console.log("Excluded team IDs:", Array.from(excludedTeamIds));
+
+        // --- Debugging: Find all other teams from the same university and check their status/exclusion ---
+        const allOtherTeamsSameUniversity = await Team.find({
+            _id: { $ne: teamId }, // Exclude the user's own team
+            university: userTeam.university, // Must be same university
+        })
+        .select('name university status');
+
+        console.log("All other teams from same university:", allOtherTeamsSameUniversity.map(team => ({
+            name: team.name,
+            university: team.university,
+            status: team.status,
+            isExcluded: excludedTeamIds.has(team._id.toString())
+        })));
+        // --- End Debugging ---
+
 
         // 3. Find potential teams:
         //    - Same university
         //    - Not the user's own team
         //    - Not already matched or having a pending request
-        //    - Optional: Status 'active' or 'forming' (not 'matched' or 'inactive')
+        //    - Status 'active', 'forming', or 'matched'
         const potentialTeams = await Team.find({
             _id: { $nin: Array.from(excludedTeamIds) }, // Exclude own team and teams with existing matches
             university: userTeam.university, // Must be same university
-            status: { $in: ['forming', 'active'] } // Optional: Only find teams looking for matches
+            status: { $in: ['forming', 'active', 'matched'] } // Include 'matched' status
         })
         .select('name description members university status') // Select fields to return
         .populate('members', 'name'); // Populate member names for display
+
+        console.log("Potential teams found:", potentialTeams.map(team => ({ name: team.name, university: team.university, status: team.status })));
 
         res.json(potentialTeams);
 

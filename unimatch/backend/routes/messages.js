@@ -42,4 +42,40 @@ router.get('/:matchId', protect, async (req, res, next) => {
     }
 });
 
+// @desc    Get private messages between the logged-in user and another user
+// @route   GET /api/messages/private/:otherUserId
+// @access  Private
+router.get('/private/:otherUserId', protect, async (req, res, next) => {
+    const loggedInUserId = req.user.id;
+    const otherUserId = req.params.otherUserId;
+
+    if (loggedInUserId === otherUserId) {
+        return res.status(400).json({ message: 'Cannot fetch private messages with yourself.' });
+    }
+
+    try {
+        // Find messages where the pair (loggedInUserId, otherUserId) is either (sender, recipient) or (recipient, sender)
+        // and isPrivate is true.
+        const messages = await Message.find({
+            isPrivate: true,
+            $or: [
+                { sender: loggedInUserId, recipient: otherUserId },
+                { sender: otherUserId, recipient: loggedInUserId }
+            ]
+        })
+        .populate('sender', 'name') // Populate sender's name
+        .populate('recipient', 'name') // Optionally populate recipient name too
+        .sort({ createdAt: 1 }); // Sort ascending
+
+        // Optional: Add authorization check - e.g., ensure these users are part of *some* mutual accepted match?
+        // This might be complex. For now, allow fetching if logged in.
+
+        res.json(messages);
+
+    } catch (err) {
+        next(err);
+    }
+});
+
+
 module.exports = router;

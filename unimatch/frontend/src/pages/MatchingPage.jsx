@@ -51,6 +51,7 @@ const MatchingPage = () => {
             try {
                 // Fetch potential teams
                 const potentialsRes = await api.get(`/teams/${selectedTeamId}/potential-matches`);
+                console.log("Potential matches response:", potentialsRes.data); // Log the response
                 setPotentialMatches(potentialsRes.data);
             } catch (err) {
                  console.error("Error fetching potential matches:", err);
@@ -173,9 +174,12 @@ const MatchingPage = () => {
       {/* Potential Matches Section */}
       <h2>Find New Matches</h2>
       {loadingPotentials ? <p>Loading potential matches...</p> : (
-          potentialMatches.length > 0 ? (
+          // Filter out the currently selected team before mapping
+          potentialMatches.filter(team => team._id !== selectedTeamId).length > 0 ? (
               <ul>
-                  {potentialMatches.map(team => (
+                  {potentialMatches
+                    .filter(team => team._id !== selectedTeamId) // Explicitly exclude the selected team
+                    .map(team => (
                       <li key={team._id} style={{ border: '1px solid #eee', padding: '10px', marginBottom: '10px' }}>
                           <strong>{team.name}</strong> ({team.university})
                           <p>{team.description || 'No description'}</p>

@@ -4,7 +4,7 @@ import React, { useRef, useEffect } from 'react';
 // TODO: Add Footer (input, emoji, file attachment)
 // TODO: Implement image/file display in messages
 
-const MessagesView = ({ messages, selectedMatch, user, onSendMessage }) => {
+const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, onSendMessage }) => {
     const messagesEndRef = useRef(null);
     const [newMessage, setNewMessage] = React.useState(''); // Manage input state here
 
@@ -19,43 +19,65 @@ const MessagesView = ({ messages, selectedMatch, user, onSendMessage }) => {
 
     const handleFormSubmit = (e) => {
         e.preventDefault();
-        if (!newMessage.trim() || !selectedMatch) return;
-        onSendMessage(newMessage.trim()); // Pass message text up to ChatPage
+        if (!newMessage.trim()) return; // Check for empty message
+        const isPrivate = !!selectedPrivateChatUser;
+        const recipientId = selectedPrivateChatUser?._id;
+        onSendMessage(newMessage.trim(), recipientId, isPrivate); // Pass message text, recipient, and isPrivate flag
         setNewMessage(''); // Clear input
     };
 
+    // Determine if it's a group chat or private chat
+    const isGroupChatView = selectedMatch && !selectedPrivateChatUser;
+    const isPrivateChatView = selectedPrivateChatUser;
+
+    // Determine the chat header
+    let chatHeader = 'Select a Chat';
+    if (isGroupChatView) {
+        chatHeader = `Chat with Team ${selectedMatch.requestingTeam?.name || selectedMatch.receivingTeam?.name || 'Unknown'}`;
+    } else if (isPrivateChatView) {
+        chatHeader = `Private Chat with ${selectedPrivateChatUser.name}`;
+    }
+
     return (
         <div className="messages-view-column" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 100px)' }}>
-             {/* TODO: Header */}
+             {/* Header */}
              <div className="messages-header" style={{ padding: '10px', borderBottom: '1px solid #ccc', background: '#f8f9fa' }}>
-                 {selectedMatch ? `Chat with Team ${selectedMatch.requestingTeam?.name || selectedMatch.receivingTeam?.name || 'Unknown'}` : 'Select a Chat'}
-                 {/* Add Schedule & Menu buttons here */}
+                 {chatHeader}
+                 {/* Add Schedule & Menu buttons here - maybe disable in private chat view? */}
              </div>
 
              {/* Message Stream */}
             <div className="message-stream" style={{ flexGrow: 1, overflowY: 'scroll', padding: '10px' }}>
-                {selectedMatch ? (
+                {isGroupChatView || isPrivateChatView ? (
                     messages.length > 0 ? (
-                        messages.map((msg, index) => (
-                            <div key={index} style={{ marginBottom: '10px', display: 'flex', justifyContent: msg.sender._id === user._id ? 'flex-end' : 'flex-start' }}>
-                                <div style={{ maxWidth: '70%' }}>
-                                    <div style={{ fontSize: '0.8em', color: 'gray', marginBottom: '2px', textAlign: msg.sender._id === user._id ? 'right' : 'left' }}>
-                                        {msg.sender.name} ({new Date(msg.timestamp).toLocaleTimeString()})
-                                    </div>
-                                    <div style={{ background: msg.sender._id === user._id ? '#dcf8c6' : '#eee', padding: '8px 12px', borderRadius: '10px', wordBreak: 'break-word' }}>
-                                        {msg.text}
+                        messages.map((msg, index) => {
+                            // Filter messages based on chat type (group vs private)
+                            if (isPrivateChatView && !msg.isPrivate) return null; // Skip group messages in private view
+                            if (isGroupChatView && msg.isPrivate) return null; // Skip private messages in group view
+
+                            const isMyMessage = msg.sender._id === user._id;
+                            return (
+                                <div key={index} style={{ marginBottom: '10px', display: 'flex', justifyContent: isMyMessage ? 'flex-end' : 'flex-start' }}>
+                                    <div style={{ maxWidth: '70%' }}>
+                                        <div style={{ fontSize: '0.8em', color: 'gray', marginBottom: '2px', textAlign: isMyMessage ? 'right' : 'left' }}>
+                                            {msg.sender.name} ({new Date(msg.timestamp).toLocaleTimeString()})
+                                            {isPrivateChatView && !isMyMessage && ` (Private)`} {/* Indicate private message origin */}
+                                        </div>
+                                        <div style={{ background: isMyMessage ? '#dcf8c6' : '#eee', padding: '8px 12px', borderRadius: '10px', wordBreak: 'break-word' }}>
+                                            {msg.text}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))
+                            );
+                        })
                     ) : <p>No messages yet for this chat.</p>
-                ) : <p>Please select a match to start chatting.</p>}
+                ) : <p>Please select a match or user to start chatting.</p>}
                 <div ref={messagesEndRef} /> {/* Element to scroll to */}
             </div>
 
-             {/* TODO: Footer / Message Input */}
+             {/* Footer / Message Input */}
              <div className="message-input-footer" style={{ padding: '10px', borderTop: '1px solid #ccc' }}>
-                 {selectedMatch && (
+                 {(isGroupChatView || isPrivateChatView) && (
                     <form onSubmit={handleFormSubmit} style={{ display: 'flex' }}>
                         {/* Add emoji/file buttons here */}
                         <input
@@ -64,9 +86,9 @@ const MessagesView = ({ messages, selectedMatch, user, onSendMessage }) => {
                             onChange={handleInputChange}
                             placeholder="Type your message..."
                             style={{ flexGrow: 1, marginRight: '10px', padding: '8px', borderRadius: '5px', border: '1px solid #ccc' }}
-                            disabled={!selectedMatch} // Disable if no chat selected
+                            disabled={!selectedMatch && !selectedPrivateChatUser} // Disable if no chat selected
                         />
-                        <button type="submit" disabled={!selectedMatch || !newMessage.trim()}>Send</button>
+                        <button type="submit" disabled={!newMessage.trim()}>Send</button>
                     </form>
                  )}
              </div>

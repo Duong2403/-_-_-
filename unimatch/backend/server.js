@@ -77,6 +77,9 @@ const io = new Server(server, {
 // Make io accessible to routes AFTER it's initialized
 app.set('socketio', io);
 
+// In-memory store for user ID to socket ID mapping
+const userSockets = {};
+
 // Socket.IO Authentication Middleware
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token; // Expect token from client handshake auth
@@ -90,6 +93,9 @@ io.use(async (socket, next) => {
     if (!socket.user) {
          return next(new Error('Authentication error: User not found'));
     }
+    // Store the mapping
+    userSockets[socket.user._id.toString()] = socket.id;
+    console.log('User sockets map updated:', userSockets);
     next();
   } catch (err) {
     console.error("Socket Auth Error:", err.message);
@@ -105,6 +111,12 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}, User: ${socket.user.name}`);
+    // Remove user from mapping on disconnect
+    const userId = Object.keys(userSockets).find(key => userSockets[key] === socket.id);
+    if (userId) {
+        delete userSockets[userId];
+        console.log('User sockets map updated after disconnect:', userSockets);
+    }
   });
 
   // --- Chat Event Handlers ---
@@ -124,53 +136,83 @@ io.on('connection', (socket) => {
     socket.leave(matchId);
   });
 
-  // Handle incoming chat messages
+  // Handle incoming chat messages (group or private)
   socket.on('sendMessage', async (data) => { // Make the handler async
-    const { matchId, text } = data;
+    const { matchId, text, recipientId, isPrivate } = data; // Add recipientId and isPrivate
+
     if (!matchId || !text) {
-        // Handle error - maybe emit an error event back to sender
         console.error("sendMessage error: Missing matchId or text");
+        socket.emit('messageError', { message: 'Missing required message data.' });
+        return;
+    }
+    if (isPrivate && !recipientId) {
+        console.error("sendMessage error: Missing recipientId for private message");
+        socket.emit('messageError', { message: 'Recipient ID is required for private messages.' });
         return;
     }
 
-    // TODO: Add validation - check if user is in the specified room (matchId)
+    // TODO: Add validation - check if user is part of the matchId
 
-    console.log(`Message received for room ${matchId} from ${socket.user.name}: ${text}`);
+    console.log(`Message received: ${isPrivate ? 'Private' : 'Group'} for match ${matchId} from ${socket.user.name}: ${text}`);
 
-    // Construct message object
-    const messageData = {
-        sender: { // Send necessary sender info
-            _id: socket.user._id,
-            name: socket.user.name,
-        },
+    // Construct message object to save
+    const messageToSave = new Message({
+        match: matchId,
+        sender: socket.user._id,
         text: text,
-        timestamp: new Date(),
-            matchId: matchId // Include matchId for context if needed on client
+        isPrivate: !!isPrivate, // Ensure boolean
+        recipient: isPrivate ? recipientId : undefined,
+    });
+
+    // Construct message object to emit (include recipient for private messages)
+    const messageToEmit = {
+        _id: messageToSave._id, // Assign a temporary ID or wait for save? Let's wait.
+        sender: { _id: socket.user._id, name: socket.user.name },
+        text: text,
+        timestamp: new Date(), // Use server timestamp
+        matchId: matchId,
+        isPrivate: !!isPrivate,
+        recipient: isPrivate ? { _id: recipientId } : undefined, // Include recipient ID if private
+        createdAt: new Date() // Add createdAt for consistency
     };
+
 
     // Save message to database
     try {
-        const message = new Message({
-            match: matchId,
-            sender: socket.user._id,
-            text: text,
-        });
-        await message.save();
-        console.log(`Message saved to DB for match ${matchId}`);
+        const savedMessage = await messageToSave.save();
+        console.log(`Message saved to DB (ID: ${savedMessage._id}) for match ${matchId}`);
+        messageToEmit._id = savedMessage._id; // Update with actual saved ID
+        messageToEmit.createdAt = savedMessage.createdAt; // Update with actual timestamp
+
+        if (isPrivate) {
+            // Send to recipient if online
+            const recipientSocketId = userSockets[recipientId.toString()];
+            if (recipientSocketId) {
+                io.to(recipientSocketId).emit('receiveMessage', messageToEmit);
+                console.log(`Private message ${savedMessage._id} sent to recipient ${recipientId} (socket ${recipientSocketId})`);
+            } else {
+                console.log(`Recipient ${recipientId} is offline. Message saved.`);
+                // Optionally implement offline message handling/notifications later
+            }
+            // Send back to sender for confirmation/display
+            socket.emit('receiveMessage', messageToEmit);
+            console.log(`Private message ${savedMessage._id} sent back to sender ${socket.user.name} (socket ${socket.id})`);
+
+        } else {
+            // Broadcast the group message to all clients in the specific room (matchId)
+            io.to(matchId).emit('receiveMessage', messageToEmit);
+            console.log(`Group message ${savedMessage._id} broadcast to room ${matchId}`);
+        }
+
     } catch (dbErr) {
-        console.error(`Database save error for message in room ${matchId}:`, dbErr);
-        // Decide if you want to emit an error back to the sender
-        // socket.emit('error', { message: 'Failed to save message.' });
-        // Or just log and continue broadcasting? For now, just log.
+        console.error(`Database save error for message in match ${matchId}:`, dbErr);
+        socket.emit('messageError', { message: 'Failed to save or send message.' });
     }
-
-    // Broadcast the message to all clients in the specific room (matchId)
-    // including the sender
-    io.to(matchId).emit('receiveMessage', messageData);
-
-    // Or broadcast to everyone except the sender:
-    // socket.to(matchId).emit('receiveMessage', messageData);
   });
+
+  // --- Meeting Event Handlers (Example - Adapt as needed) ---
+  // Listen for meeting proposals/updates from routes and broadcast
+  // This requires the route handlers to access 'io' via app.get('socketio')
 
 });
 

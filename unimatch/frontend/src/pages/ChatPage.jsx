@@ -14,11 +14,13 @@ const ChatPage = () => {
     const [socket, setSocket] = useState(null);
     const [myTeams, setMyTeams] = useState([]); // Needed for getOtherTeamName
     const [acceptedMatches, setAcceptedMatches] = useState([]);
-    const [selectedMatch, setSelectedMatch] = useState(null);
+    const [selectedMatch, setSelectedMatch] = useState(null); // For group chat context
+    const [selectedPrivateChatUser, setSelectedPrivateChatUser] = useState(null); // For 1-on-1 chat { _id, name }
     const [messages, setMessages] = useState([]);
     const [meetingProposals, setMeetingProposals] = useState([]); // State for meeting proposals
     const [error, setError] = useState('');
     const selectedMatchIdRef = useRef(null); // Ref to hold current selected match ID
+    const selectedPrivateChatUserIdRef = useRef(null); // Ref for private chat user ID
 
     // --- Helper Function ---
     const getOtherTeamName = (match, userTeams) => {
@@ -108,13 +110,45 @@ const ChatPage = () => {
         });
         newSocket.on('disconnect', (reason) => console.log('Socket disconnected:', reason));
 
-        // Listener for chat messages
+        // Listener for chat messages (group or private)
         newSocket.on('receiveMessage', (message) => {
             console.log('Message received:', message);
+            console.log('Current state/refs:', {
+                selectedMatchIdRef: selectedMatchIdRef.current,
+                selectedPrivateChatUserIdRef: selectedPrivateChatUserIdRef.current,
+                selectedPrivateChatUser: selectedPrivateChatUser, // Check the state value
+                user: user,
+                incomingMessage: message
+            });
+
             setMessages((prevMessages) => {
-                if (selectedMatchIdRef.current && message.matchId === selectedMatchIdRef.current) {
+                const isCurrentlyViewingGroupChat = selectedMatchIdRef.current && !selectedPrivateChatUserIdRef.current;
+                const isCurrentlyViewingPrivateChat = selectedPrivateChatUserIdRef.current;
+
+                // --- Logic for adding message to state ---
+
+                // 1. If currently viewing a group chat:
+                if (isCurrentlyViewingGroupChat && !message.isPrivate && message.matchId === selectedMatchIdRef.current) {
                     return [...prevMessages, message];
                 }
+
+                // 2. If currently viewing a private chat:
+                if (isCurrentlyViewingPrivateChat && message.isPrivate) {
+                    // Check if the message is between the logged-in user and the selected private chat user
+                    const isMessageBetweenCurrentUsers =
+                        (message.sender._id === user?._id && message.recipient?._id === selectedPrivateChatUserIdRef.current) ||
+                        (message.sender._id === selectedPrivateChatUserIdRef.current && message.recipient?._id === user?._id);
+
+                    // Also ensure the private message belongs to the context match of the selected private chat user
+                    const belongsToSelectedPrivateChatContext = selectedPrivateChatUser?.matchIdContext ? message.matchId === selectedPrivateChatUser.matchIdContext : false; // Must belong to the context match
+
+                    if (isMessageBetweenCurrentUsers && belongsToSelectedPrivateChatContext) {
+                        return [...prevMessages, message];
+                    }
+                }
+
+                // If the message doesn't belong to the currently viewed chat, don't add it
+                // TODO: Potentially show a notification for new messages in other chats
                 return prevMessages;
             });
         });
@@ -161,56 +195,142 @@ const ChatPage = () => {
 
     // --- Joining/Leaving Rooms, Fetching History & Meetings ---
     useEffect(() => {
+        // Update refs for use in socket listeners
         selectedMatchIdRef.current = selectedMatch?._id || null;
+        selectedPrivateChatUserIdRef.current = selectedPrivateChatUser?._id || null;
 
-        if (socket && selectedMatch) {
+        // Determine if we are viewing a group chat or a private chat
+        const isGroupChatView = selectedMatch && !selectedPrivateChatUser;
+        const isPrivateChatView = selectedPrivateChatUser; // Private chat takes precedence if selected
+
+        // --- Group Chat Logic ---
+        if (socket && isGroupChatView) {
             const matchId = selectedMatch._id;
-            console.log(`Joining room: ${matchId}`);
-            socket.emit('joinRoom', matchId);
+            console.log(`Joining group room: ${matchId}`);
+            socket.emit('joinRoom', matchId); // Join the group room
 
-            const fetchChatData = async () => {
+            const fetchGroupChatData = async () => {
                 setError('');
-                setMessages([]);
-                setMeetingProposals([]);
+                setMessages([]); // Clear previous messages
+                setMeetingProposals([]); // Clear previous proposals
                 try {
+                    // Fetch group messages and meeting proposals for the match
                     const [historyRes, meetingsRes] = await Promise.all([
-                        api.get(`/messages/${matchId}`),
+                        api.get(`/messages/${matchId}`), // Fetches only group messages by default now? Need to check API
                         api.get(`/meetings/match/${matchId}`)
                     ]);
-                    setMessages(historyRes.data);
+                    // Filter messages on client-side just in case API returns mixed? Or update API.
+                    // Assuming API GET /messages/:matchId returns ONLY group messages for now.
+                    setMessages(historyRes.data.filter(m => !m.isPrivate));
                     setMeetingProposals(meetingsRes.data);
                 } catch (err) {
-                    console.error("Error fetching chat data:", err);
-                    setError(err.response?.data?.message || 'Failed to fetch chat data.');
+                    console.error("Error fetching group chat data:", err);
+                    setError(err.response?.data?.message || 'Failed to fetch group chat data.');
                     setMessages([]);
                     setMeetingProposals([]);
                 }
             };
-            fetchChatData();
+            fetchGroupChatData();
 
+            // Cleanup function for group chat
             return () => {
-                console.log(`Leaving room: ${matchId}`);
+                console.log(`Leaving group room: ${matchId}`);
                 socket.emit('leaveRoom', matchId);
             };
-        } else {
+        }
+        // --- Private Chat Logic ---
+        else if (socket && isPrivateChatView) {
+            const otherUserId = selectedPrivateChatUser._id;
+            console.log(`Fetching private chat history with user: ${otherUserId}`);
+            // No specific socket room needed for 1-on-1, handled by userSockets map on server
+
+            const fetchPrivateChatData = async () => {
+                setError('');
+                setMessages([]); // Clear previous messages
+                setMeetingProposals([]); // No meeting proposals in private chat view
+                try {
+                    // Fetch private messages between logged-in user and selected user
+                    const historyRes = await api.get(`/messages/private/${otherUserId}`);
+                    setMessages(historyRes.data); // API should return only relevant private messages
+                } catch (err) {
+                    console.error("Error fetching private chat data:", err);
+                    setError(err.response?.data?.message || 'Failed to fetch private chat data.');
+                    setMessages([]);
+                }
+            };
+            fetchPrivateChatData();
+
+            // No specific cleanup needed for socket rooms for private chat
+            return () => {};
+        }
+        // --- No Chat Selected ---
+        else {
              setMessages([]);
              setMeetingProposals([]);
         }
-    }, [socket, selectedMatch]);
+    }, [socket, selectedMatch, selectedPrivateChatUser]); // Re-run when socket, selected group, or selected private user changes
 
     // --- Handlers ---
     const handleSelectMatch = (match) => {
+        setSelectedPrivateChatUser(null); // Deselect private chat when selecting a group chat
         setSelectedMatch(match);
     };
 
+     // New handler to select a private chat partner
+     // partner should be { _id, name, matchIdContext }
+     const handleSelectPrivateChat = (partner) => {
+        console.log("handleSelectPrivateChat received partner:", partner); // Log the incoming partner object
+        if (partner._id === user?._id) return; // Don't select self
+        setSelectedMatch(null); // Deselect group chat when selecting a private chat
+        // Store the partner details including matchIdContext
+        setSelectedPrivateChatUser(partner);
+        console.log("Selected private chat with:", partner);
+    };
+
+
     const handleSendMessage = (messageText) => {
-        if (!socket || !selectedMatch || !messageText) return;
+        if (!socket || !messageText) return;
+
+        const isPrivate = !!selectedPrivateChatUser; // Determine if it's a private message
+
+        // Determine the matchId context based on whether it's a group or private chat
+        const contextMatchId = isPrivate ? selectedPrivateChatUser?.matchIdContext : selectedMatch?._id;
+
+        console.log("handleSendMessage contextMatchId:", contextMatchId, "isPrivate:", isPrivate, "selectedPrivateChatUser:", selectedPrivateChatUser); // Log context
+
+        if (!contextMatchId) {
+             // This should ideally not happen if a chat (group or private) is selected,
+             // but as a safeguard, ensure we have a valid match context ID.
+             console.error("Cannot send message without a valid match context.");
+             setError("Please select a chat to send messages."); // Keep the user-friendly error message
+             return;
+        }
+
+
         const messageData = {
-            matchId: selectedMatch._id,
+            matchId: contextMatchId, // Associate with the correct match context
             text: messageText,
+            isPrivate: isPrivate,
+            recipientId: isPrivate ? selectedPrivateChatUser._id : undefined,
         };
+        console.log("Sending message:", messageData);
         socket.emit('sendMessage', messageData);
     };
+
+    // Handler for when a chat is closed via the GroupInfo component
+    const handleChatClosed = (closedMatchId) => {
+        setAcceptedMatches(prevMatches => prevMatches.filter(match => match._id !== closedMatchId));
+        if (selectedMatch?._id === closedMatchId) {
+            setSelectedMatch(null); // Clear selection if the closed chat was selected
+            setMessages([]); // Clear messages
+            setMeetingProposals([]); // Clear proposals
+        }
+        // Optionally, select the next available match or show a message
+    };
+
+    // Determine if we are viewing a group chat or a private chat
+    const isGroupChatView = selectedMatch && !selectedPrivateChatUser;
+    const isPrivateChatView = selectedPrivateChatUser;
 
     // --- Render ---
     return (
@@ -227,14 +347,17 @@ const ChatPage = () => {
             <MessagesView
                 messages={messages}
                 selectedMatch={selectedMatch}
+                selectedPrivateChatUser={selectedPrivateChatUser} // Pass the private chat user
                 user={user}
                 onSendMessage={handleSendMessage}
             />
             <GroupInfo
                 selectedMatch={selectedMatch}
-                meetingProposals={meetingProposals}
+                meetingProposals={isPrivateChatView ? [] : meetingProposals} // No meetings in private chat view
                 api={api} // Pass api instance
-                // TODO: Pass a function to refresh proposals after cancel/respond if socket update isn't sufficient
+                onChatClosed={handleChatClosed} // Pass the handler down
+                onSelectPrivateChat={handleSelectPrivateChat} // Pass the private chat selection handler
+                isPrivateChatSelected={!!selectedPrivateChatUser} // Indicate if a private chat is active
             />
         </div>
     );

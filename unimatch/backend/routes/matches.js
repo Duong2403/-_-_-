@@ -216,5 +216,55 @@ router.delete('/:matchId/cancel', protect, async (req, res, next) => {
     }
 });
 
+// @desc    Close an accepted match (exit chat)
+// @route   PUT /api/matches/:matchId/close
+// @access  Private (Members of either matched team)
+router.put('/:matchId/close', protect, async (req, res, next) => {
+    const matchId = req.params.matchId;
+    const userId = req.user.id;
+
+    try {
+        const match = await Match.findById(matchId)
+                                 .populate('requestingTeam', 'members')
+                                 .populate('receivingTeam', 'members');
+
+        if (!match) {
+            return res.status(404).json({ message: 'Match not found.' });
+        }
+
+        // Only allow closing 'accepted' matches
+        if (match.status !== 'accepted') {
+            return res.status(400).json({ message: `Cannot close a match that is currently ${match.status}.` });
+        }
+
+        // Authorization: Check if user is a member of either team
+        const isMemberOfRequesting = isTeamMember(match.requestingTeam, userId);
+        const isMemberOfReceiving = isTeamMember(match.receivingTeam, userId);
+
+        if (!isMemberOfRequesting && !isMemberOfReceiving) {
+            return res.status(403).json({ message: 'You must be a member of one of the matched teams to close the chat.' });
+        }
+
+        // Update status to 'closed'
+        match.status = 'closed';
+        match.closedAt = Date.now(); // Optional: track when it was closed
+        // You might also want to set the team statuses back to 'available' or similar if needed
+        // await Team.updateMany(
+        //     { _id: { $in: [match.requestingTeam._id, match.receivingTeam._id] } },
+        //     { $set: { status: 'available' } } // Example: Reset team status
+        // );
+
+        const updatedMatch = await match.save();
+        const populatedMatch = await Match.findById(updatedMatch._id)
+                                        .populate('requestingTeam', 'name university')
+                                        .populate('receivingTeam', 'name university');
+
+        res.json(populatedMatch);
+
+    } catch (err) {
+        next(err);
+    }
+});
+
 
 module.exports = router;

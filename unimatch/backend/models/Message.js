@@ -17,6 +17,16 @@ const MessageSchema = new mongoose.Schema({
     required: [true, 'Message text cannot be empty.'],
     trim: true,
   },
+  isPrivate: { // Flag for private messages
+    type: Boolean,
+    default: false,
+  },
+  recipient: { // Reference to the specific recipient User for private messages
+    type: mongoose.Schema.ObjectId,
+    ref: 'User',
+    required: function() { return this.isPrivate; }, // Required only if isPrivate is true
+    index: true, // Index recipient for faster private chat lookups
+  },
   // Optional: Add read status if needed later
   // isRead: {
   //   type: Boolean,

@@ -7,10 +7,12 @@ import { useAuth } from '../../context/AuthContext'; // Import useAuth hook
 // TODO: Display online status (requires backend changes/socket integration)
 // TODO: Add Quick Stats (e.g., member count, date matched)
 
-const GroupInfo = ({ selectedMatch, meetingProposals, api }) => { // Added meetingProposals and api props
+// Added onSelectPrivateChat and isPrivateChatSelected props
+const GroupInfo = ({ selectedMatch, meetingProposals, api, onChatClosed, onSelectPrivateChat, isPrivateChatSelected }) => {
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false); // State for review modal
     const [respondingMeetingId, setRespondingMeetingId] = useState(null); // Add state for loading indicator
+    const [isExitingChat, setIsExitingChat] = useState(false); // State for exit chat loading
     const { user } = useAuth(); // Get user from context for checking responses
 
     // Determine user's team and opponent team within the selected match
@@ -74,8 +76,8 @@ const GroupInfo = ({ selectedMatch, meetingProposals, api }) => { // Added meeti
         }
     };
 
-     // Handler function to cancel a meeting proposal or scheduled meeting
-     const handleCancelMeeting = async (meetingId) => {
+    // Handler function to cancel a meeting proposal or scheduled meeting
+    const handleCancelMeeting = async (meetingId) => {
         if (!api) {
              console.error("API instance not passed to GroupInfo component.");
              alert("Error: Cannot process request.");
@@ -97,6 +99,32 @@ const GroupInfo = ({ selectedMatch, meetingProposals, api }) => { // Added meeti
         }
     };
 
+    // Handler function to exit/close the current chat
+    const handleExitChat = async () => {
+        if (!api || !selectedMatch) {
+            console.error("API instance or selectedMatch not available.");
+            alert("Error: Cannot process request.");
+            return;
+        }
+        if (!window.confirm('Are you sure you want to exit this chat? This will close the match for both teams.')) {
+            return;
+        }
+        setIsExitingChat(true);
+        try {
+            await api.put(`/matches/${selectedMatch._id}/close`);
+            alert('Chat closed successfully!');
+            // Notify parent component (ChatPage) to remove this chat from the list
+            if (typeof onChatClosed === 'function') { // Double check it's a function
+                onChatClosed(selectedMatch._id);
+            }
+        } catch (err) {
+            console.error("Error closing chat:", err);
+            alert(`Error: ${err.response?.data?.message || 'Failed to close chat.'}`);
+        } finally {
+            setIsExitingChat(false);
+        }
+    };
+
 
     return (
         <div className="group-info-column" style={{ borderLeft: '1px solid #ccc', padding: '10px', height: 'calc(100vh - 100px)', overflowY: 'auto', width: '250px' }}>
@@ -115,16 +143,39 @@ const GroupInfo = ({ selectedMatch, meetingProposals, api }) => { // Added meeti
                      <button
                         onClick={() => setIsReviewModalOpen(true)}
                         style={{ width: '100%', marginBottom: '15px', background: '#ffc107' }}
-                        disabled={!selectedMatch || !opponentTeam}
-                    >
-                        Review Team {opponentTeam?.name || ''}
-                    </button>
+                         disabled={!selectedMatch || !opponentTeam}
+                     >
+                         Review Team {opponentTeam?.name || ''}
+                     </button>
+                      <button
+                         onClick={handleExitChat}
+                         style={{ width: '100%', marginBottom: '15px', background: '#dc3545', color: 'white' }}
+                         disabled={!selectedMatch || isExitingChat}
+                         title="Leave this chat conversation"
+                      >
+                         {isExitingChat ? 'Exiting...' : 'Exit Chat'}
+                      </button>
 
                     <h5>Members</h5>
                     <ul>
                         {members.map(member => (
                              <li key={member._id} style={{ marginBottom: '5px' }}>
-                                 <Link to={`/users/${member._id}`}>{member.name}</Link>
+                                 {/* Link to user profile OR start private chat */}
+                                 {/* <Link to={`/users/${member._id}`}>{member.name}</Link> */}
+                                 <span
+                                    style={{ cursor: 'pointer', color: 'blue', textDecoration: 'underline' }}
+                                    onClick={() => {
+                                        // Ensure onSelectPrivateChat is a function before calling
+                                        if (typeof onSelectPrivateChat === 'function') {
+                                            // Pass the member's ID, name, and the current selectedMatch ID as matchIdContext
+                                            onSelectPrivateChat({ _id: member._id, name: member.name, matchIdContext: selectedMatch?._id });
+                                        } else {
+                                            console.error("onSelectPrivateChat prop is not a function.");
+                                        }
+                                    }}
+                                 >
+                                    {member.name}
+                                 </span>
                              </li>
                         ))}
                     </ul>
