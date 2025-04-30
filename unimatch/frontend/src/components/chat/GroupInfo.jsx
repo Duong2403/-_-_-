@@ -158,26 +158,32 @@ const GroupInfo = ({ selectedMatch, meetingProposals, api, onChatClosed, onSelec
 
                     <h5>Members</h5>
                     <ul>
-                        {members.map(member => (
-                             <li key={member._id} style={{ marginBottom: '5px' }}>
-                                 {/* Link to user profile OR start private chat */}
-                                 {/* <Link to={`/users/${member._id}`}>{member.name}</Link> */}
-                                 <span
-                                    style={{ cursor: 'pointer', color: 'blue', textDecoration: 'underline' }}
-                                    onClick={() => {
-                                        // Ensure onSelectPrivateChat is a function before calling
-                                        if (typeof onSelectPrivateChat === 'function') {
-                                            // Pass the member's ID, name, and the current selectedMatch ID as matchIdContext
-                                            onSelectPrivateChat({ _id: member._id, name: member.name, matchIdContext: selectedMatch?._id });
-                                        } else {
-                                            console.error("onSelectPrivateChat prop is not a function.");
-                                        }
-                                    }}
-                                 >
-                                    {member.name}
-                                 </span>
-                             </li>
-                        ))}
+                        {members.map(member => {
+                            // Check if the member is in the user's team
+                            const isMyTeamMember = userTeam?.members?.some(m => m._id === member._id);
+                            return (
+                                <li key={member._id} style={{ marginBottom: '5px' }}>
+                                    <span
+                                        style={{ cursor: 'pointer', color: 'blue', textDecoration: 'underline' }}
+                                        onClick={() => {
+                                            if (typeof onSelectPrivateChat === 'function') {
+                                                onSelectPrivateChat({ _id: member._id, name: member.name, matchIdContext: selectedMatch?._id });
+                                            } else {
+                                                console.error("onSelectPrivateChat prop is not a function.");
+                                            }
+                                        }}
+                                    >
+                                        {member.name}
+                                    </span>
+                                    {/* Add label to distinguish team members */}
+                                    {isMyTeamMember ? (
+                                        <span style={{ marginLeft: '5px', fontSize: '0.8em', color: 'green' }}>(My Team)</span>
+                                    ) : (
+                                        <span style={{ marginLeft: '5px', fontSize: '0.8em', color: 'gray' }}>(Other Team)</span>
+                                    )}
+                                </li>
+                            );
+                        })}
                     </ul>
 
                     {/* Display Scheduled Meeting */}
