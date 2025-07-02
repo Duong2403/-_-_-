@@ -67,15 +67,41 @@ router.get('/private/:otherUserId', protect, async (req, res, next) => {
         .populate('recipient', 'name') // Optionally populate recipient name too
         .sort({ createdAt: 1 }); // Sort ascending
 
+        console.log(`Fetched ${messages.length} private messages between users ${loggedInUserId} and ${otherUserId}`);
+
         // Optional: Add authorization check - e.g., ensure these users are part of *some* mutual accepted match?
-        // This might be complex. For now, allow fetching if logged in.
+        // For now, we'll verify they have at least one mutual match
+        const mutualMatches = await Match.find({
+            status: 'accepted',
+            $or: [
+                { 
+                    'requestingTeam': { $in: await getTeamIdsByUserId(loggedInUserId) },
+                    'receivingTeam': { $in: await getTeamIdsByUserId(otherUserId) }
+                },
+                { 
+                    'requestingTeam': { $in: await getTeamIdsByUserId(otherUserId) },
+                    'receivingTeam': { $in: await getTeamIdsByUserId(loggedInUserId) }
+                }
+            ]
+        });
+
+        if (mutualMatches.length === 0) {
+            return res.status(403).json({ message: 'You can only send private messages to users from matched teams.' });
+        }
 
         res.json(messages);
 
     } catch (err) {
+        console.error('Error fetching private messages:', err);
         next(err);
     }
 });
+
+// Helper function to get team IDs for a user
+async function getTeamIdsByUserId(userId) {
+    const teams = await Team.find({ members: userId }).select('_id');
+    return teams.map(team => team._id);
+}
 
 
 module.exports = router;

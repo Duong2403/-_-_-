@@ -1,8 +1,16 @@
-import React, { useState, useMemo } from 'react'; // Import useState, useMemo
-import { Link } from 'react-router-dom';
-import ScheduleMeetingModal from './ScheduleMeetingModal'; // Import the modal
-import SubmitReviewModal from './SubmitReviewModal'; // Import the review modal
-import { useAuth } from '../../context/AuthContext'; // Import useAuth hook
+import React, { useState, useMemo } from 'react';
+import ScheduleMeetingModal from './ScheduleMeetingModal';
+import SubmitReviewModal from './SubmitReviewModal';
+import { useAuth } from '../../context/AuthContext';
+import { 
+    GroupsIcon, 
+    MeetingIcon, 
+    CoupleIcon, 
+    UniversityIcon,
+    DateIcon,
+    MessageIcon,
+    SparkIcon
+} from '../ui/SocialIcons';
 
 // TODO: Display online status (requires backend changes/socket integration)
 // TODO: Add Quick Stats (e.g., member count, date matched)
@@ -10,291 +18,267 @@ import { useAuth } from '../../context/AuthContext'; // Import useAuth hook
 // Added onSelectPrivateChat and isPrivateChatSelected props
 const GroupInfo = ({ selectedMatch, meetingProposals, api, onChatClosed, onSelectPrivateChat, isPrivateChatSelected }) => {
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false); // State for review modal
-    const [respondingMeetingId, setRespondingMeetingId] = useState(null); // Add state for loading indicator
-    const [isExitingChat, setIsExitingChat] = useState(false); // State for exit chat loading
-    const { user } = useAuth(); // Get user from context for checking responses
+    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+    const [respondingMeetingId, setRespondingMeetingId] = useState(null);
+    const [isExitingChat, setIsExitingChat] = useState(false);
+    const { user } = useAuth();
 
     // Determine user's team and opponent team within the selected match
     const { userTeam, opponentTeam } = useMemo(() => {
-        // console.log("useMemo calculating teams: selectedMatch=", selectedMatch, "user=", user); // Log inputs
         if (!selectedMatch || !user) {
-            // console.log("useMemo: Missing selectedMatch or user");
             return { userTeam: null, opponentTeam: null };
         }
         const reqTeam = selectedMatch.requestingTeam;
         const recTeam = selectedMatch.receivingTeam;
-        // console.log("useMemo: reqTeam=", reqTeam, "recTeam=", recTeam); // Log teams from match
 
-        // Ensure teams and members arrays are populated before checking
         if (!reqTeam?.members || !recTeam?.members) {
-             // console.log("useMemo: Teams or members not fully populated yet.");
-             return { userTeam: null, opponentTeam: null }; // Return null if data isn't ready
+            return { userTeam: null, opponentTeam: null };
         }
 
         const userIsRequesting = reqTeam.members.some(m => m._id === user._id);
         const userIsReceiving = recTeam.members.some(m => m._id === user._id);
-        // console.log("useMemo: userIsRequesting=", userIsRequesting, "userIsReceiving=", userIsReceiving); // Log checks
 
         if (userIsRequesting) {
-            // console.log("useMemo: User is in requesting team. Opponent:", recTeam?.name);
             return { userTeam: reqTeam, opponentTeam: recTeam };
         } else if (userIsReceiving) {
-            // console.log("useMemo: User is in receiving team. Opponent:", reqTeam?.name);
             return { userTeam: recTeam, opponentTeam: reqTeam };
         } else {
-            // console.log("useMemo: User not found in either team members list.");
-            return { userTeam: null, opponentTeam: null }; // Should not happen if match data is correct
+            return { userTeam: null, opponentTeam: null };
         }
     }, [selectedMatch, user]);
 
-    // Safely determine combined members list for display
-    let members = [];
+    // Get all members for private chat
+    let allMembers = [];
     if (selectedMatch?.requestingTeam && selectedMatch?.receivingTeam) {
         const reqMembers = selectedMatch.requestingTeam.members || [];
         const recMembers = selectedMatch.receivingTeam.members || [];
-        members = reqMembers.concat(recMembers);
+        allMembers = reqMembers.concat(recMembers);
     }
 
-     // Handler function to respond to a meeting proposal
-     const handleRespond = async (meetingId, slotIndex, status) => {
-        if (!api) {
-             console.error("API instance not passed to GroupInfo component.");
-             alert("Error: Cannot process request.");
-             return;
-        }
+    // Handler functions
+    const handleRespond = async (meetingId, slotIndex, status) => {
+        if (!api) return;
+        
         setRespondingMeetingId(meetingId);
         try {
-            await api.put(`/meetings/${meetingId}/respond`, { acceptedSlotIndex: slotIndex, status });
-            alert(`Response (${status}) submitted!`);
-            // TODO: Refresh meeting proposals state after responding
+            const requestData = { acceptedSlotIndex: slotIndex, status };
+            await api.put(`/meetings/${meetingId}/respond`, requestData);
         } catch (err) {
             console.error("Error responding to meeting proposal:", err);
-            alert(`Error: ${err.response?.data?.message || 'Failed to respond.'}`);
         } finally {
             setRespondingMeetingId(null);
         }
     };
 
-    // Handler function to cancel a meeting proposal or scheduled meeting
     const handleCancelMeeting = async (meetingId) => {
-        if (!api) {
-             console.error("API instance not passed to GroupInfo component.");
-             alert("Error: Cannot process request.");
-             return;
-        }
-        if (!window.confirm('Are you sure you want to cancel this meeting/proposal?')) {
-            return;
-        }
-        setRespondingMeetingId(meetingId); // Use same loading state
+        if (!api || !window.confirm('Are you sure you want to cancel this meeting?')) return;
+        
+        setRespondingMeetingId(meetingId);
         try {
             await api.delete(`/meetings/${meetingId}`);
-            alert('Meeting cancelled successfully!');
-            // TODO: Refresh meeting proposals state after cancelling (or rely on socket event)
         } catch (err) {
             console.error("Error cancelling meeting:", err);
-            alert(`Error: ${err.response?.data?.message || 'Failed to cancel meeting.'}`);
         } finally {
             setRespondingMeetingId(null);
         }
     };
 
-    // Handler function to exit/close the current chat
     const handleExitChat = async () => {
-        if (!api || !selectedMatch) {
-            console.error("API instance or selectedMatch not available.");
-            alert("Error: Cannot process request.");
-            return;
-        }
-        if (!window.confirm('Are you sure you want to exit this chat? This will close the match for both teams.')) {
-            return;
-        }
+        if (!api || !selectedMatch || !window.confirm('Are you sure you want to close this match? This action cannot be undone.')) return;
+        
         setIsExitingChat(true);
         try {
             await api.put(`/matches/${selectedMatch._id}/close`);
-            alert('Chat closed successfully!');
-            // Notify parent component (ChatPage) to remove this chat from the list
-            if (typeof onChatClosed === 'function') { // Double check it's a function
+            if (typeof onChatClosed === 'function') {
                 onChatClosed(selectedMatch._id);
             }
         } catch (err) {
             console.error("Error closing chat:", err);
-            alert(`Error: ${err.response?.data?.message || 'Failed to close chat.'}`);
         } finally {
             setIsExitingChat(false);
         }
     };
 
+    if (!selectedMatch) {
+        return (
+            <div className="flex flex-col h-full">
+                <div className="flex-1 flex items-center justify-center p-6">
+                    <div className="text-center">
+                        <div className="w-16 h-16 bg-neutral-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <GroupsIcon className="text-neutral-500" size={24} />
+                        </div>
+                        <h3 className="text-lg font-medium text-neutral-800 mb-2">No Chat Selected</h3>
+                        <p className="text-neutral-600 text-sm">
+                            Select a team to view details and start collaborating.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="group-info-column" style={{ borderLeft: '1px solid #ccc', padding: '10px', height: 'calc(100vh - 100px)', overflowY: 'auto', width: '250px' }}>
-            <h3>Group Info</h3>
-            {selectedMatch ? (
-                <>
-                    <h4>{opponentTeam?.name || 'Team Details'}</h4>
+        <div className="flex flex-col h-full">
+            {/* Team Header */}
+            <div className="p-4 border-b border-neutral-200 bg-white">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-gradient-love rounded-full flex items-center justify-center">
+                        <UniversityIcon className="text-white" size={18} />
+                    </div>
+                    <div>
+                        <h2 className="font-semibold text-neutral-800">{opponentTeam?.name || 'Team'}</h2>
+                        <p className="text-xs text-neutral-600">{opponentTeam?.university || 'University'}</p>
+                    </div>
+                </div>
+
+                {/* Quick Action Buttons */}
+                <div className="grid grid-cols-1 gap-2">
                     <button
                         onClick={() => setIsScheduleModalOpen(true)}
-                        style={{ width: '100%', marginBottom: '5px' }}
-                        disabled={!selectedMatch || !!meetingProposals?.find(p => p.status === 'scheduled' || p.status === 'proposed')}
-                        title={meetingProposals?.find(p => p.status === 'scheduled' || p.status === 'proposed') ? "Cancel existing meeting/proposal first" : ""}
+                        disabled={!!meetingProposals?.find(p => p.status === 'scheduled' || p.status === 'proposed')}
+                        className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
+                        <DateIcon size={16} />
                         Schedule Meeting
                     </button>
-                     <button
+                    
+                    <button
                         onClick={() => setIsReviewModalOpen(true)}
-                        style={{ width: '100%', marginBottom: '15px', background: '#ffc107' }}
-                         disabled={!selectedMatch || !opponentTeam}
-                     >
-                         Review Team {opponentTeam?.name || ''}
-                     </button>
-                      <button
-                         onClick={handleExitChat}
-                         style={{ width: '100%', marginBottom: '15px', background: '#dc3545', color: 'white' }}
-                         disabled={!selectedMatch || isExitingChat}
-                         title="Leave this chat conversation"
-                      >
-                         {isExitingChat ? 'Exiting...' : 'Exit Chat'}
-                      </button>
+                        disabled={!opponentTeam}
+                        className="flex items-center justify-center gap-2 px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+                    >
+                        <SparkIcon size={16} />
+                        Review Team
+                    </button>
 
-                    <h5>Members</h5>
-                    <ul>
-                        {members.map(member => {
-                            // Check if the member is in the user's team
-                            const isMyTeamMember = userTeam?.members?.some(m => m._id === member._id);
-                            return (
-                                <li key={member._id} style={{ marginBottom: '5px' }}>
-                                    <span
-                                        style={{ cursor: 'pointer', color: 'blue', textDecoration: 'underline' }}
-                                        onClick={() => {
-                                            if (typeof onSelectPrivateChat === 'function') {
-                                                onSelectPrivateChat({ _id: member._id, name: member.name, matchIdContext: selectedMatch?._id });
-                                            } else {
-                                                console.error("onSelectPrivateChat prop is not a function.");
-                                            }
-                                        }}
-                                    >
-                                        {member.name}
-                                    </span>
-                                    {/* Add label to distinguish team members */}
-                                    {isMyTeamMember ? (
-                                        <span style={{ marginLeft: '5px', fontSize: '0.8em', color: 'green' }}>(My Team)</span>
-                                    ) : (
-                                        <span style={{ marginLeft: '5px', fontSize: '0.8em', color: 'gray' }}>(Other Team)</span>
-                                    )}
-                                </li>
-                            );
-                        })}
-                    </ul>
+                    <button
+                        onClick={handleExitChat}
+                        disabled={isExitingChat}
+                        className="flex items-center justify-center gap-2 px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                    >
+                        <GroupsIcon size={16} />
+                        {isExitingChat ? 'Closing...' : 'Close Match'}
+                    </button>
+                </div>
+            </div>
 
-                    {/* Display Scheduled Meeting */}
-                    <h5 style={{ marginTop: '20px' }}>Scheduled Meeting</h5>
-                    {(() => {
-                        const scheduledMeeting = meetingProposals?.find(p => p.status === 'scheduled');
-                        if (scheduledMeeting && scheduledMeeting.scheduledSlot) {
-                            return (
-                                <div style={{ fontSize: '0.9em', marginBottom: '10px', border: '1px solid lightgreen', padding: '5px', background: '#e9f5e9' }}>
-                                    <strong>Status: Scheduled</strong><br />
-                                    Location: {scheduledMeeting.location}<br />
-                                    Time: {new Date(scheduledMeeting.scheduledSlot.startTime).toLocaleString([], {dateStyle: 'short', timeStyle: 'short'})} - {new Date(scheduledMeeting.scheduledSlot.endTime).toLocaleTimeString([], {timeStyle: 'short'})}
-                                    <button
-                                        onClick={() => handleCancelMeeting(scheduledMeeting._id)}
-                                        disabled={respondingMeetingId === scheduledMeeting._id}
-                                        style={{ fontSize: '0.8em', padding: '2px 5px', background: 'orange', marginLeft: '10px', display: 'block', marginTop: '5px' }}
-                                    >
-                                        Cancel Meeting
-                                    </button>
+            {/* Content Sections */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                
+                {/* Team Members */}
+                <div>
+                    <h3 className="font-medium text-neutral-800 mb-3 flex items-center gap-2">
+                        <CoupleIcon size={16} />
+                        Team Members ({opponentTeam?.members?.length || 0})
+                    </h3>
+                    <div className="space-y-2">
+                        {opponentTeam?.members?.map(member => (
+                            <div key={member._id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-neutral-200 hover:border-neutral-300 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-gradient-sunset rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                                        {member.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-neutral-800 text-sm">{member.name}</p>
+                                        <p className="text-xs text-neutral-500">{member.email}</p>
+                                    </div>
                                 </div>
-                            );
-                        } else {
-                            return <p style={{ fontSize: '0.9em' }}>No meeting currently scheduled.</p>;
-                        }
-                    })()}
+                                {member._id !== user._id && (
+                                    <button
+                                        onClick={() => onSelectPrivateChat({
+                                            _id: member._id,
+                                            name: member.name,
+                                            matchIdContext: selectedMatch._id
+                                        })}
+                                        className="p-2 text-primary-rose hover:bg-primary-rose hover:bg-opacity-10 rounded-lg transition-colors"
+                                        title={`Chat with ${member.name}`}
+                                    >
+                                        <MessageIcon size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
 
-                    {/* Display Meeting Proposals (Only if no meeting is scheduled) */}
-                    {!(meetingProposals?.some(p => p.status === 'scheduled')) && (
-                        <>
-                            <h5 style={{ marginTop: '20px' }}>Meeting Proposals</h5>
-                            {meetingProposals && meetingProposals.filter(p => p.status === 'proposed').length > 0 ? (
-                                <ul>
-                                    {meetingProposals.filter(p => p.status === 'proposed').map(proposal => (
-                                        <li key={proposal._id} style={{ fontSize: '0.9em', marginBottom: '10px', border: '1px solid #eee', padding: '5px' }}>
-                                            Proposed by: {proposal.proposer?.name || 'Unknown'} <br />
-                                            Location: {proposal.location} <br />
-                                            {proposal.description && <>Description: {proposal.description}<br /></>}
-                                            Proposed Slots:
-                                            <ul>
-                                                {proposal.proposedSlots.map((slot, index) => {
-                                                    const myResponse = proposal.responses?.find(r => r.userId === user?._id);
-                                                    const isAcceptedByMe = myResponse?.status === 'accepted' && myResponse?.acceptedSlotIndex === index;
-                                                    const isRejectedByMe = myResponse?.status === 'rejected';
-                                                    return (
-                                                        <li key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                                                            <span>
-                                                                {new Date(slot.startTime).toLocaleString([], {dateStyle: 'short', timeStyle: 'short'})} - {new Date(slot.endTime).toLocaleTimeString([], {timeStyle: 'short'})}
-                                                            </span>
-                                                            {!isRejectedByMe && (
-                                                                <button
-                                                                    onClick={() => handleRespond(proposal._id, index, 'accepted')}
-                                                                    disabled={respondingMeetingId === proposal._id}
-                                                                    style={{ fontSize: '0.8em', padding: '2px 5px', background: isAcceptedByMe ? 'darkgreen' : 'lightgreen', marginLeft: '5px' }}
-                                                                >
-                                                                    {isAcceptedByMe ? 'Accepted' : 'Accept'}
-                                                                </button>
-                                                            )}
-                                                        </li>
-                                                    );
-                                                })}
-                                            </ul>
-                                             {!proposal.responses?.some(r => r.userId === user?._id) && (
-                                                 <button
-                                                    onClick={() => handleRespond(proposal._id, -1, 'rejected')}
-                                                    disabled={respondingMeetingId === proposal._id}
-                                                    style={{ fontSize: '0.8em', padding: '2px 5px', background: 'lightcoral', marginTop: '5px' }}
-                                                >
-                                                    Reject All Slots
-                                                </button>
-                                             )}
-                                             <button
-                                                onClick={() => handleCancelMeeting(proposal._id)}
+                {/* Meetings */}
+                {meetingProposals && meetingProposals.length > 0 && (
+                    <div>
+                        <h3 className="font-medium text-neutral-800 mb-3 flex items-center gap-2">
+                            <MeetingIcon size={16} />
+                            Active Meetings
+                        </h3>
+                        <div className="space-y-3">
+                            {meetingProposals.map(proposal => (
+                                <div key={proposal._id} className="p-3 bg-white rounded-lg border border-neutral-200">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                            proposal.status === 'proposed' ? 'bg-amber-100 text-amber-800' :
+                                            proposal.status === 'scheduled' ? 'bg-green-100 text-green-800' : 
+                                            'bg-neutral-100 text-neutral-700'
+                                        }`}>
+                                            {proposal.status}
+                                        </span>
+                                        <span className="text-xs text-neutral-500">
+                                            {new Date(proposal.createdAt).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                    
+                                    {proposal.description && (
+                                        <p className="text-sm text-neutral-600 mb-3">{proposal.description}</p>
+                                    )}
+
+                                    {proposal.status === 'proposed' && (
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handleRespond(proposal._id, 0, 'accepted')}
                                                 disabled={respondingMeetingId === proposal._id}
-                                                style={{ fontSize: '0.8em', padding: '2px 5px', background: 'orange', display: 'block', marginTop: '5px' }}
+                                                className="flex-1 px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors disabled:opacity-50"
                                             >
-                                                Cancel Proposal
+                                                Accept
                                             </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p style={{ fontSize: '0.9em' }}>No active meeting proposals.</p>
-                            )}
-                        </>
-                    )}
-                </>
-            ) : (
-                <p>Select a chat to see group info.</p>
-            )}
+                                            <button
+                                                onClick={() => handleRespond(proposal._id, 0, 'rejected')}
+                                                disabled={respondingMeetingId === proposal._id}
+                                                className="flex-1 px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors disabled:opacity-50"
+                                            >
+                                                Decline
+                                            </button>
+                                        </div>
+                                    )}
 
-            {isScheduleModalOpen && selectedMatch && (
+                                    {proposal.status === 'scheduled' && (
+                                        <button
+                                            onClick={() => handleCancelMeeting(proposal._id)}
+                                            disabled={respondingMeetingId === proposal._id}
+                                            className="w-full px-3 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600 transition-colors disabled:opacity-50"
+                                        >
+                                            Cancel Meeting
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Modals */}
+            {isScheduleModalOpen && (
                 <ScheduleMeetingModal
-                    matchId={selectedMatch._id}
+                    isOpen={isScheduleModalOpen}
                     onClose={() => setIsScheduleModalOpen(false)}
-                    onMeetingProposed={(proposedMeeting) => {
-                        console.log('Meeting proposed:', proposedMeeting);
-                        alert('Meeting proposed successfully!');
-                        // TODO: Add proposedMeeting to meetingProposals state locally or refetch
-                    }}
+                    selectedMatch={selectedMatch}
+                    api={api}
                 />
             )}
 
-             {isReviewModalOpen && selectedMatch && userTeam && opponentTeam && (
+            {isReviewModalOpen && (
                 <SubmitReviewModal
-                    match={selectedMatch}
-                    userTeam={userTeam}
-                    opponentTeam={opponentTeam}
+                    isOpen={isReviewModalOpen}
                     onClose={() => setIsReviewModalOpen(false)}
-                    onReviewSubmitted={(submittedReview) => {
-                        console.log('Review submitted:', submittedReview);
-                    }}
+                    opponentTeam={opponentTeam}
+                    api={api}
                 />
             )}
         </div>

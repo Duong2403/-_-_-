@@ -67,9 +67,16 @@ const ScheduleMeetingModal = ({ matchId, onClose, onMeetingProposed }) => {
     };
 
     const handleSlotToggle = (slot) => {
+        // Create new Date objects to avoid mutating selectedDate
+        const startDateTime = new Date(selectedDate);
+        startDateTime.setHours(slot.startHour, 0, 0, 0);
+        
+        const endDateTime = new Date(selectedDate);
+        endDateTime.setHours(slot.endHour, 0, 0, 0);
+        
         const slotDateTime = {
-            startTime: new Date(selectedDate.setHours(slot.startHour, 0, 0, 0)),
-            endTime: new Date(selectedDate.setHours(slot.endHour, 0, 0, 0))
+            startTime: startDateTime,
+            endTime: endDateTime
         };
 
         setProposedSlots(prevSlots => {
@@ -88,14 +95,17 @@ const ScheduleMeetingModal = ({ matchId, onClose, onMeetingProposed }) => {
                 //     alert("You can propose up to 3 time slots.");
                 //     return prevSlots;
                 // }
-                return [...prevSlots, {startTime: slotDateTime.startTime, endTime: slotDateTime.endTime}]; // Ensure correct format
+                return [...prevSlots, slotDateTime];
             }
         });
     };
 
     const isSlotSelected = (slot) => {
-         const startTime = new Date(selectedDate.setHours(slot.startHour, 0, 0, 0)).getTime();
-         return proposedSlots.some(ps => ps.startTime.getTime() === startTime);
+        // Create new Date object to avoid mutating selectedDate
+        const startDateTime = new Date(selectedDate);
+        startDateTime.setHours(slot.startHour, 0, 0, 0);
+        const startTime = startDateTime.getTime();
+        return proposedSlots.some(ps => ps.startTime.getTime() === startTime);
     };
 
 
@@ -105,24 +115,40 @@ const ScheduleMeetingModal = ({ matchId, onClose, onMeetingProposed }) => {
             setError('Please select at least one time slot and enter a location.');
             return;
         }
+        
+        console.log('=== ScheduleMeetingModal Submit ===');
+        console.log('Match ID:', matchId);
+        console.log('Proposed Slots:', proposedSlots);
+        console.log('Location:', location.trim());
+        console.log('Description:', description.trim());
+        
         setLoading(true);
         setError('');
         try {
-            const res = await api.post('/meetings', {
+            const requestData = {
                 matchId,
                 proposedSlots,
                 location: location.trim(),
                 description: description.trim() || undefined // Only send if not empty
-            });
+            };
+            
+            console.log('Sending request data:', JSON.stringify(requestData, null, 2));
+            
+            const res = await api.post('/meetings', requestData);
+            
+            console.log('Meeting proposal response:', res.data);
             onMeetingProposed(res.data); // Notify parent
             onClose(); // Close modal on success
-    } catch (err) {
-        console.error("Error proposing meeting:", err);
-        // Display the specific message from the backend response if available
-        const backendErrorMessage = err.response?.data?.message || 'Failed to propose meeting.';
-        setError(backendErrorMessage);
-    } finally {
-        setLoading(false);
+        } catch (err) {
+            console.error("Error proposing meeting:", err);
+            console.error("Error response:", err.response?.data);
+            console.error("Error status:", err.response?.status);
+            
+            // Display the specific message from the backend response if available
+            const backendErrorMessage = err.response?.data?.message || 'Failed to propose meeting.';
+            setError(backendErrorMessage);
+        } finally {
+            setLoading(false);
         }
     };
 

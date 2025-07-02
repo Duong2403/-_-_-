@@ -17,269 +17,283 @@ import PublicProfilePage from './pages/PublicProfilePage'; // Import the new pag
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar'; // Let's create a Navbar component
 
-// Simple Home component for the root path
+import { 
+  UniversityIcon,
+  GroupsIcon,
+  CoupleIcon,
+  DateIcon,
+  CoffeeIcon,
+  SparkIcon
+} from './components/ui/SocialIcons';
+import { 
+  ArrowRightIcon,
+  StarIcon,
+  ChatIcon
+} from './components/ui/Icons';
+
+// Modern Scientific Home component
 const HomePage = () => (
-  <div style={{
-    textAlign: 'center',
-    padding: '60px 20px', // Increased padding
-    backgroundColor: '#f8f9fa',
-    fontFamily: "'Arial', sans-serif" // Added font family
-  }}>
-    <h1 style={{
-      color: '#007bff',
-      marginBottom: '20px',
-      fontSize: '2.5em' // Larger heading
-    }}>Welcome to UniMatch</h1>
-    <p style={{
-      fontSize: '1.3em', // Slightly larger text
-      color: '#555',
-      marginBottom: '60px', // Increased margin
-      maxWidth: '900px', // Max width for better readability
-      margin: '0 auto 60px auto' // Center paragraph
-    }}>
-      The ultimate platform designed for university students to easily connect, form teams, and collaborate on projects, studies, and events.
-    </p>
+  <div className="bg-neutral-50 min-h-screen">
+    {/* Hero Section */}
+    <section className="section-lg bg-gradient text-white overflow-hidden relative">
+      <div className="absolute inset-0 bg-black bg-opacity-10"></div>
+      <div className="container relative z-10">
+        <div className="text-center animate-fade-in">
+          <div className="flex justify-center mb-6">
+            <div className="flex items-center gap-4 bg-white bg-opacity-20 rounded-full px-6 py-3 backdrop-blur-sm">
+              <DateIcon className="text-white" size={32} />
+              <span className="text-xl font-semibold">Inter-University Connection Platform</span>
+            </div>
+          </div>
+          <h1 className="text-6xl font-bold mb-6 font-family-heading">
+            Welcome to <span className="text-yellow-300">UniMatch</span>
+          </h1>
+          <p className="text-xl text-white text-opacity-90 mb-8 max-w-4xl mx-auto leading-relaxed">
+            Connect university groups across different schools! Create groups with your classmates 
+            and meet amazing groups from other universities for friendships, study sessions, and romantic connections.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Link to="/register" className="btn btn-lg bg-white text-primary-rose hover:bg-neutral-100 transition-all duration-300 transform hover:scale-105">
+              <SparkIcon className="mr-2" size={20} />
+              Find Your Match
+            </Link>
+            <Link to="/login" className="btn btn-lg btn-outline border-white text-white hover:bg-white hover:text-primary-rose">
+              <ArrowRightIcon className="mr-2" size={20} />
+              Sign In
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    {/* Section 1: What is UniMatch? */}
-    <div style={{ margin: '60px auto', maxWidth: '1000px' }}> {/* Centered section */}
-      <h2 style={{ color: '#343a40', marginBottom: '30px', fontSize: '2em' }}>What is UniMatch?</h2>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}> {/* Flex container for text and image */}
-        <p style={{ fontSize: '1.1em', color: '#666', maxWidth: '800px', margin: '0 auto 30px auto' }}>
-          UniMatch simplifies the process of finding like-minded peers within your university. Whether you need teammates for a group project, study partners for an exam, or collaborators for an event, UniMatch helps you find the perfect match based on skills, interests, and availability.
-        </p>
-        {/* Placeholder for an illustrative image */}
-        {/* <img src="/path/to/illustration1.png" alt="What is UniMatch Illustration" style={{ marginTop: '30px', maxWidth: '100%', height: 'auto' }} /> */}
-        <div style={{
-          marginTop: '30px',
-          width: '100%', // Full width within container
-          maxWidth: '700px', // Max width for image placeholder
-          height: '300px', // Increased height
-          backgroundColor: '#e9ecef',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          color: '#6c757d',
-          borderRadius: '8px' // Rounded corners
-        }}>
-          [Placeholder for Image: Illustration showing students connecting]
+    {/* What is UniMatch Section */}
+    <section className="section bg-white">
+      <div className="container">
+        <div className="text-center mb-16 animate-slide-up">
+          <div className="flex justify-center mb-4">
+            <UniversityIcon className="text-primary-rose" size={48} />
+          </div>
+          <h2 className="text-4xl font-bold text-neutral-800 mb-6 font-family-heading">
+            What is <span className="text-gradient">UniMatch</span>?
+          </h2>
+          <p className="text-lg text-neutral-600 max-w-4xl mx-auto leading-relaxed">
+            UniMatch connects university groups from different schools for meaningful relationships! 
+            Form groups with your classmates, then discover and meet groups from other universities. 
+            Whether you're looking for study partners, new friendships, or that special someone - we help you connect!
+          </p>
+        </div>
+        <div className="bg-gradient-love rounded-2xl p-8 text-white text-center animate-bounce-in">
+          <div className="flex justify-center mb-6">
+            <div className="grid grid-3 gap-8 max-w-2xl">
+              <div className="flex flex-col items-center">
+                <GroupsIcon className="text-white mb-2" size={32} />
+                <span className="font-semibold">15,000+</span>
+                <span className="text-sm opacity-90">Students</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <UniversityIcon className="text-white mb-2" size={32} />
+                <span className="font-semibold">200+</span>
+                <span className="text-sm opacity-90">Universities</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <DateIcon className="text-white mb-2" size={32} />
+                <span className="font-semibold">25,000+</span>
+                <span className="text-sm opacity-90">Successful Matches</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-lg opacity-90">
+            Join thousands of students finding friends and love across university boundaries! 💕
+          </p>
         </div>
       </div>
-    </div>
+    </section>
 
-    {/* Section 2: Key Features */}
-    <div style={{ margin: '60px auto', maxWidth: '1200px' }}> {/* Centered section */}
-      <h2 style={{ color: '#343a40', marginBottom: '40px', fontSize: '2em' }}>Key Features</h2>
-      <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '30px' }}> {/* Added gap */}
-        <div style={{
-          width: '300px',
-          padding: '30px', // Increased padding
-          border: '1px solid #dee2e6',
-          borderRadius: '8px',
-          backgroundColor: '#fff',
-          boxShadow: '0 4px 8px rgba(0,0,0,0.1)' // Added shadow
-        }}>
-          <h3 style={{ color: '#007bff', marginBottom: '20px', fontSize: '1.5em' }}>Team Creation & Management</h3>
-          <p style={{ color: '#666', fontSize: '1.1em' }}>Easily create and manage teams for any purpose. Invite members, set team goals, and keep track of your progress.</p>
-          {/* Placeholder for a feature icon/image */}
-           {/* <img src="/path/to/icon-team.png" alt="Team Feature Icon" style={{ marginTop: '20px', width: '60px', height: '60px' }} /> */}
-           <div style={{
-             marginTop: '20px',
-             width: '60px', // Larger icon placeholder
-             height: '60px', // Larger icon placeholder
-             backgroundColor: '#ced4da',
-             margin: '20px auto 0',
-             display: 'flex',
-             justifyContent: 'center',
-             alignItems: 'center',
-             color: '#495057',
-             borderRadius: '50%' // Circular icon placeholder
-           }}>
-             [Icon]
-           </div>
+    {/* Key Features Section */}
+    <section className="section bg-neutral-50">
+      <div className="container">
+        <div className="text-center mb-16 animate-slide-up">
+          <h2 className="text-4xl font-bold text-neutral-800 mb-6 font-family-heading">
+            Features for <span className="text-gradient">Meaningful Connections</span>
+          </h2>
+          <p className="text-lg text-neutral-600 max-w-3xl mx-auto">
+            Everything you need to create groups, meet other university groups, and build lasting relationships
+          </p>
         </div>
-        <div style={{
-          width: '300px',
-          padding: '30px',
-          border: '1px solid #dee2e6',
-          borderRadius: '8px',
-          backgroundColor: '#fff',
-          boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-        }}>
-          <h3 style={{ color: '#007bff', marginBottom: '20px', fontSize: '1.5em' }}>Smart Matching</h3>
-          <p style={{ color: '#666', fontSize: '1.1em' }}>Our intelligent algorithm helps you find the best potential matches based on your team's needs and other users' profiles.</p>
-           {/* Placeholder for a feature icon/image */}
-           {/* <img src="/path/to/icon-match.png" alt="Matching Feature Icon" style={{ marginTop: '20px', width: '60px', height: '60px' }} /> */}
-            <div style={{
-             marginTop: '20px',
-             width: '60px',
-             height: '60px',
-             backgroundColor: '#ced4da',
-             margin: '20px auto 0',
-             display: 'flex',
-             justifyContent: 'center',
-             alignItems: 'center',
-             color: '#495057',
-             borderRadius: '50%'
-           }}>
-             [Icon]
-           </div>
-        </div>
-        <div style={{
-          width: '300px',
-          padding: '30px',
-          border: '1px solid #dee2e6',
-          borderRadius: '8px',
-          backgroundColor: '#fff',
-          boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-        }}>
-          <h3 style={{ color: '#007bff', marginBottom: '20px', fontSize: '1.5em' }}>Integrated Communication</h3>
-          <p style={{ color: '#666', fontSize: '1.1em' }}>Communicate seamlessly with your team and matched teams through our built-in chat and meeting scheduling features.</p>
-           {/* Placeholder for a feature icon/image */}
-           {/* <img src="/path/to/icon-chat.png" alt="Communication Feature Icon" style={{ marginTop: '20px', width: '60px', height: '60px' }} /> */}
-            <div style={{
-             marginTop: '20px',
-             width: '60px',
-             height: '60px',
-             backgroundColor: '#ced4da',
-             margin: '20px auto 0',
-             display: 'flex',
-             justifyContent: 'center',
-             alignItems: 'center',
-             color: '#495057',
-             borderRadius: '50%'
-           }}>
-             [Icon]
-           </div>
+        <div className="grid grid-3 gap-8 animate-bounce-in">
+          <div className="card hover:shadow-2xl transition-all duration-300">
+            <div className="card-body text-center">
+              <div className="flex justify-center mb-6">
+                <div className="bg-gradient rounded-full p-4">
+                  <GroupsIcon className="text-white" size={32} />
+                </div>
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-800 mb-4">Group Formation</h3>
+              <p className="text-neutral-600 leading-relaxed">
+                Create groups with your university friends and showcase your collective interests, 
+                personalities, and what you're looking for in other groups.
+              </p>
+              <div className="mt-6">
+                <span className="badge badge-primary">Team Building</span>
+                <span className="badge badge-outline ml-2">Friendship</span>
+              </div>
+            </div>
+          </div>
+          <div className="card hover:shadow-2xl transition-all duration-300">
+            <div className="card-body text-center">
+              <div className="flex justify-center mb-6">
+                <div className="bg-gradient-love rounded-full p-4">
+                  <UniversityIcon className="text-white" size={32} />
+                </div>
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-800 mb-4">Inter-University Matching</h3>
+              <p className="text-neutral-600 leading-relaxed">
+                Discover and connect with groups from other universities based on shared interests, 
+                compatibility, and relationship goals.
+              </p>
+              <div className="mt-6">
+                <span className="badge badge-success">Cross-Campus</span>
+                <span className="badge badge-outline ml-2">Smart Matching</span>
+              </div>
+            </div>
+          </div>
+          <div className="card hover:shadow-2xl transition-all duration-300">
+            <div className="card-body text-center">
+              <div className="flex justify-center mb-6">
+                <div className="bg-gradient-friendship rounded-full p-4">
+                  <ChatIcon className="text-white" size={32} />
+                </div>
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-800 mb-4">Group Communication</h3>
+              <p className="text-neutral-600 leading-relaxed">
+                Chat between groups, plan meetups, schedule dates, and get to know each other 
+                in a fun, safe environment.
+              </p>
+              <div className="mt-6">
+                <span className="badge badge-warning">Group Chat</span>
+                <span className="badge badge-outline ml-2">Meetup Planning</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    {/* Section 3: How it Works */}
-     <div style={{ margin: '60px auto', maxWidth: '1000px' }}> {/* Centered section */}
-      <h2 style={{ color: '#343a40', marginBottom: '40px', fontSize: '2em' }}>How it Works</h2>
-      <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center', gap: '20px' }}> {/* Added gap */}
-        <div style={{ width: '250px', margin: '10px', textAlign: 'left' }}> {/* Adjusted margin */}
-          <h4 style={{ color: '#007bff', marginBottom: '10px', fontSize: '1.3em' }}>1. Create Your Profile</h4>
-          <p style={{ color: '#666', fontSize: '1em' }}>Sign up with your school email and build a profile highlighting your skills and interests.</p>
+    {/* How it Works Section */}
+    <section className="section bg-white">
+      <div className="container">
+        <div className="text-center mb-16 animate-slide-up">
+          <h2 className="text-4xl font-bold text-neutral-800 mb-6 font-family-heading">
+            How It <span className="text-gradient">Works</span>
+          </h2>
+          <p className="text-lg text-neutral-600 max-w-3xl mx-auto">
+            Get started in minutes and connect with groups from other universities for friendship and romance
+          </p>
         </div>
-         {/* Placeholder for an arrow or connecting line image */}
-         {/* <img src="/path/to/arrow.png" alt="Step Arrow" style={{ width: '50px', height: 'auto' }} /> */}
-         <div style={{
-           width: '50px',
-           height: '20px',
-           backgroundColor: '#adb5bd',
-           margin: '0 10px',
-           display: 'flex',
-           justifyContent: 'center',
-           alignItems: 'center',
-           color: '#495057',
-           fontWeight: 'bold' // Bold arrow
-         }}>
-             {`->`} {/* Simplified arrow */}
-           </div>
-        <div style={{ width: '250px', margin: '10px', textAlign: 'left' }}>
-          <h4 style={{ color: '#007bff', marginBottom: '10px', fontSize: '1.3em' }}>2. Form or Join a Team</h4>
-          <p style={{ color: '#666', fontSize: '1em' }}>Create a new team for your project or browse existing teams to join.</p>
+        <div className="grid grid-4 gap-8 mb-16 animate-bounce-in">
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="bg-gradient rounded-full p-6 relative">
+                <UniversityIcon className="text-white" size={32} />
+                <div className="absolute -top-2 -right-2 bg-accent-peach text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
+                  1
+                </div>
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-neutral-800 mb-3">Join Your University</h3>
+            <p className="text-neutral-600 text-sm leading-relaxed">
+              Sign up with your university email and create your personal profile with interests, photos, and what you're looking for.
+            </p>
+          </div>
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="bg-gradient-friendship rounded-full p-6 relative">
+                <GroupsIcon className="text-white" size={32} />
+                <div className="absolute -top-2 -right-2 bg-accent-peach text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
+                  2
+                </div>
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-neutral-800 mb-3">Form Your Group</h3>
+            <p className="text-neutral-600 text-sm leading-relaxed">
+              Create a group with your university friends (2-6 people) and set your group's interests and relationship goals.
+            </p>
+          </div>
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="bg-gradient-love rounded-full p-6 relative">
+                <SparkIcon className="text-white" size={32} />
+                <div className="absolute -top-2 -right-2 bg-accent-peach text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
+                  3
+                </div>
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-neutral-800 mb-3">Discover Matches</h3>
+            <p className="text-neutral-600 text-sm leading-relaxed">
+              Browse and match with groups from other universities based on shared interests, compatibility, and goals.
+            </p>
+          </div>
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="bg-gradient-accent rounded-full p-6 relative">
+                <CoffeeIcon className="text-white" size={32} />
+                <div className="absolute -top-2 -right-2 bg-accent-peach text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
+                  4
+                </div>
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-neutral-800 mb-3">Meet & Connect</h3>
+            <p className="text-neutral-600 text-sm leading-relaxed">
+              Chat with matched groups, plan meetups, and build lasting friendships or romantic relationships across universities.
+            </p>
+          </div>
         </div>
-         {/* Placeholder for an arrow or connecting line image */}
-         {/* <img src="/path/to/arrow.png" alt="Step Arrow" style={{ width: '50px', height: 'auto' }} /> */}
-         <div style={{
-           width: '50px',
-           height: '20px',
-           backgroundColor: '#adb5bd',
-           margin: '0 10px',
-           display: 'flex',
-           justifyContent: 'center',
-           alignItems: 'center',
-           color: '#495057',
-           fontWeight: 'bold'
-         }}>
-             {`->`}
-           </div>
-        <div style={{ width: '250px', margin: '10px', textAlign: 'left' }}>
-          <h4 style={{ color: '#007bff', marginBottom: '10px', fontSize: '1.3em' }}>3. Find Your Match</h4>
-          <p style={{ color: '#666', fontSize: '1em' }}>Use our matching feature to connect with other teams or individuals.</p>
-        </div>
-         {/* Placeholder for an arrow or connecting line image */}
-         {/* <img src="/path/to/arrow.png" alt="Step Arrow" style={{ width: '50px', height: 'auto' }} /> */}
-         <div style={{
-           width: '50px',
-           height: '20px',
-           backgroundColor: '#adb5bd',
-           margin: '0 10px',
-           display: 'flex',
-           justifyContent: 'center',
-           alignItems: 'center',
-           color: '#495057',
-           fontWeight: 'bold'
-         }}>
-             {`->`}
-           </div>
-         <div style={{ width: '250px', margin: '10px', textAlign: 'left' }}>
-          <h4 style={{ color: '#007bff', marginBottom: '10px', fontSize: '1.3em' }}>4. Collaborate & Succeed</h4>
-          <p style={{ color: '#666', fontSize: '1em' }}>Utilize chat and meeting tools to work together effectively and achieve your goals.</p>
+        <div className="bg-gradient-love rounded-2xl p-8 text-white text-center">
+          <div className="flex justify-center mb-4">
+            <DateIcon className="text-white" size={48} />
+          </div>
+          <h3 className="text-2xl font-bold mb-4">Ready to find your perfect group match? 💕</h3>
+          <p className="text-lg opacity-90 mb-6">
+            Join thousands of students who are already finding amazing friends and romantic connections across universities!
+          </p>
+          <div className="flex justify-center">
+            <StarIcon className="text-yellow-300 mr-1" size={20} filled />
+            <StarIcon className="text-yellow-300 mr-1" size={20} filled />
+            <StarIcon className="text-yellow-300 mr-1" size={20} filled />
+            <StarIcon className="text-yellow-300 mr-1" size={20} filled />
+            <StarIcon className="text-yellow-300 mr-4" size={20} filled />
+            <span className="text-sm opacity-90">4.8/5 from 5,000+ happy students</span>
+          </div>
         </div>
       </div>
-       {/* Placeholder for an illustrative image summarizing the process */}
-      {/* <img src="/path/to/process-illustration.png" alt="How it Works Illustration" style={{ marginTop: '40px', maxWidth: '100%', height: 'auto' }} /> */}
-       <div style={{
-         marginTop: '40px',
-         width: '100%',
-         maxWidth: '800px', // Max width for process illustration
-         height: '350px', // Increased height
-         backgroundColor: '#e9ecef',
-         display: 'flex',
-         justifyContent: 'center',
-         alignItems: 'center',
-         color: '#6c757d',
-         borderRadius: '8px'
-       }}>
-        [Placeholder for Image: Illustration showing the step-by-step process]
-      </div>
-    </div>
+    </section>
 
     {/* Call to Action */}
-    <div style={{
-      marginTop: '80px', // Increased margin
-      padding: '40px', // Increased padding
-      backgroundColor: '#007bff',
-      color: '#fff',
-      borderRadius: '8px',
-      maxWidth: '800px', // Max width for CTA
-      margin: '80px auto 0 auto' // Center CTA
-    }}>
-      <h2 style={{ color: '#fff', marginBottom: '20px', fontSize: '2em' }}>Ready to Connect?</h2>
-      <p style={{ fontSize: '1.3em', marginBottom: '40px' }}>Join UniMatch today and find the perfect team for your next university endeavor!</p>
-      {/* Add buttons for Login and Register */}
-      <Link to="/register" style={{ textDecoration: 'none', marginRight: '20px' }}>
-        <button style={{
-          padding: '12px 30px', // Increased padding
-          fontSize: '1.1em', // Slightly larger text
-          color: '#007bff',
-          backgroundColor: '#fff',
-          border: 'none',
-          borderRadius: '5px',
-          cursor: 'pointer',
-          transition: 'background-color 0.3s ease' // Added transition
-        }} onMouseOver={(e) => e.target.style.backgroundColor = '#e9ecef'} onMouseOut={(e) => e.target.style.backgroundColor = '#fff'}>
-          Sign Up Now
-        </button>
-      </Link>
-      <Link to="/login" style={{ textDecoration: 'none' }}>
-         <button style={{
-           padding: '12px 30px',
-           fontSize: '1.1em',
-           color: '#fff',
-           backgroundColor: 'transparent',
-           border: '2px solid #fff',
-           borderRadius: '5px',
-           cursor: 'pointer',
-           transition: 'background-color 0.3s ease, color 0.3s ease' // Added transition
-         }} onMouseOver={(e) => { e.target.style.backgroundColor = '#fff'; e.target.style.color = '#007bff'; }} onMouseOut={(e) => { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#fff'; }}>
-          Login
-        </button>
-      </Link>
-    </div>
+    <section className="section-lg bg-gradient text-white text-center">
+      <div className="container">
+        <div className="animate-fade-in">
+          <h2 className="text-4xl font-bold mb-6 font-family-heading">
+            Ready to <span className="text-yellow-300">Find Love & Friendship</span>?
+          </h2>
+          <p className="text-xl mb-8 max-w-3xl mx-auto opacity-90">
+            Join UniMatch today and connect with amazing groups from other universities for friendship, dating, and unforgettable experiences!
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Link to="/register" className="btn btn-lg bg-white text-primary-rose hover:bg-neutral-100 transition-all duration-300 transform hover:scale-105">
+              <SparkIcon className="mr-2" size={20} />
+              Sign Up Now - It's Free
+            </Link>
+            <Link to="/login" className="btn btn-lg btn-outline border-white text-white hover:bg-white hover:text-primary-rose">
+              <ArrowRightIcon className="mr-2" size={20} />
+              Already have an account?
+            </Link>
+          </div>
+          <p className="text-sm opacity-75 mt-4">
+            💕 Join 15,000+ students • 🏫 200+ universities • ✨ Free forever
+          </p>
+        </div>
+      </div>
+    </section>
 
   </div>
 );
@@ -295,8 +309,8 @@ function App() {
 
   return (
     <Router>
-      <Navbar /> {/* Add Navbar */}
-      <div style={{ padding: '20px' }}> {/* Add some padding */}
+      <Navbar />
+      <main>
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<HomePage />} />
@@ -318,7 +332,7 @@ function App() {
           {/* Optional: Add a 404 Not Found Route */}
           <Route path="*" element={<div><h2>404 Not Found</h2><Link to="/">Go Home</Link></div>} />
         </Routes>
-      </div>
+      </main>
     </Router>
   );
 }

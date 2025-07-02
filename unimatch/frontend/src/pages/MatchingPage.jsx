@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom'; // Import Link
+import { Link } from 'react-router-dom';
+import { SparkIcon, GroupsIcon, CoupleIcon, UniversityIcon } from '../components/ui/SocialIcons';
 
 const MatchingPage = () => {
     const { user } = useAuth();
@@ -127,10 +128,45 @@ const MatchingPage = () => {
 
     // --- Render Logic ---
 
-    if (loadingMyTeams) return <p>Loading your teams...</p>;
+    if (loadingMyTeams) {
+        return (
+            <div className="bg-neutral-50 min-h-screen">
+                <div className="container py-16">
+                    <div className="text-center animate-fade-in">
+                        <div className="flex justify-center mb-6">
+                            <div className="bg-neutral-200 rounded-full p-6">
+                                <SparkIcon className="text-neutral-500" size={48} />
+                            </div>
+                        </div>
+                        <h2 className="text-2xl font-semibold text-neutral-800 mb-4">Loading your teams...</h2>
+                        <p className="text-neutral-600">Please wait while we fetch your data</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
-    // Added Link import, so this should work now
-    if (myTeams.length === 0) return <p>You need to be part of a team to find matches. <Link to="/teams">Go to Teams</Link></p>;
+    if (myTeams.length === 0) {
+        return (
+            <div className="bg-neutral-50 min-h-screen">
+                <div className="container py-16">
+                    <div className="text-center">
+                        <div className="flex justify-center mb-6">
+                            <div className="bg-gradient-friendship rounded-full p-6">
+                                <GroupsIcon className="text-white" size={48} />
+                            </div>
+                        </div>
+                        <h2 className="text-2xl font-semibold text-neutral-800 mb-4">Join a Team First</h2>
+                        <p className="text-neutral-600 mb-6">You need to be part of a team to find matches with other university groups.</p>
+                        <Link to="/teams" className="btn btn-primary">
+                            <GroupsIcon className="mr-2" size={16} />
+                            Go to Teams
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // Filter match requests for display - Added null checks for teams
     const incomingPending = matchRequests.filter(m =>
@@ -151,45 +187,125 @@ const MatchingPage = () => {
     // Add rejected/cancelled if needed
 
   return (
-    <div>
-      <h1>Team Matching</h1>
-      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+    <div className="bg-neutral-50 min-h-screen">
+      <div className="container py-8">
+        {/* Header */}
+        <div className="text-center mb-12 animate-fade-in">
+          <div className="flex justify-center mb-4">
+            <div className="bg-gradient-love rounded-full p-4">
+              <SparkIcon className="text-white" size={32} />
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold text-neutral-800 mb-4 font-family-heading">
+            Find Your <span className="text-gradient">Perfect Match</span> 💕
+          </h1>
+          <p className="text-lg text-neutral-600 max-w-2xl mx-auto">
+            Connect your team with amazing groups from other universities
+          </p>
+        </div>
 
-      {/* Team Selector */}
-      <div>
-        <label htmlFor="teamSelect">Select Your Team: </label>
-        <select
-            id="teamSelect"
-            value={selectedTeamId}
-            onChange={(e) => setSelectedTeamId(e.target.value)}
-            disabled={loadingPotentials || loadingRequests}
-        >
-            {myTeams.map(team => (
-                <option key={team._id} value={team._id}>{team.name}</option>
-            ))}
-        </select>
-      </div>
-      <hr style={{ margin: '20px 0' }}/>
+        {/* Error Message */}
+        {error && (
+          <div className="bg-error bg-opacity-10 border border-error text-error p-4 rounded-lg mb-6 animate-slide-up">
+            {error}
+          </div>
+        )}
 
-      {/* Potential Matches Section */}
-      <h2>Find New Matches</h2>
-      {loadingPotentials ? <p>Loading potential matches...</p> : (
-          // Filter out the currently selected team before mapping
-          potentialMatches.filter(team => team._id !== selectedTeamId).length > 0 ? (
-              <ul>
+        {/* Team Selector */}
+        <div className="card mb-8 animate-slide-up">
+          <div className="card-header">
+            <h2 className="text-xl font-semibold text-neutral-800 flex items-center">
+              <GroupsIcon className="mr-2" size={20} />
+              Select Your Team
+            </h2>
+          </div>
+          <div className="card-body">
+            <div className="form-group">
+              <label htmlFor="teamSelect" className="form-label">Choose which team to find matches for:</label>
+              <select
+                id="teamSelect"
+                value={selectedTeamId}
+                onChange={(e) => setSelectedTeamId(e.target.value)}
+                disabled={loadingPotentials || loadingRequests}
+                className="form-input"
+              >
+                {myTeams.map(team => (
+                  <option key={team._id} value={team._id}>{team.name} - {team.university}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Potential Matches Section */}
+        <div className="card mb-8 animate-slide-up">
+          <div className="card-header">
+            <h2 className="text-xl font-semibold text-neutral-800 flex items-center">
+              <CoupleIcon className="mr-2" size={20} />
+              Find New Matches
+            </h2>
+          </div>
+          <div className="card-body">
+            {loadingPotentials ? (
+              <div className="text-center py-8">
+                <div className="flex justify-center mb-4">
+                  <div className="bg-neutral-200 rounded-full p-4">
+                    <SparkIcon className="text-neutral-500" size={32} />
+                  </div>
+                </div>
+                <p className="text-neutral-600">Loading potential matches...</p>
+              </div>
+            ) : (
+              potentialMatches.filter(team => team._id !== selectedTeamId).length > 0 ? (
+                <div className="grid grid-2 gap-6">
                   {potentialMatches
-                    .filter(team => team._id !== selectedTeamId) // Explicitly exclude the selected team
+                    .filter(team => team._id !== selectedTeamId)
                     .map(team => (
-                      <li key={team._id} style={{ border: '1px solid #eee', padding: '10px', marginBottom: '10px' }}>
-                          <strong>{team.name}</strong> ({team.university})
-                          <p>{team.description || 'No description'}</p>
-                          <p>Members: {team.members.map(m => m.name).join(', ')}</p>
-                          <button onClick={() => handleSendRequest(team._id)}>Send Match Request</button>
-                      </li>
-                  ))}
-              </ul>
-          ) : <p>No potential new matches found for this team.</p>
-      )}
+                      <div key={team._id} className="card hover:shadow-xl transition-all duration-300">
+                        <div className="card-body">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 bg-gradient-sunset rounded-full flex items-center justify-center text-white font-bold">
+                              {team.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-neutral-800">{team.name}</h3>
+                              <span className="badge badge-primary">{team.university}</span>
+                            </div>
+                          </div>
+                          <p className="text-neutral-600 mb-4">{team.description || 'No description available'}</p>
+                          <div className="mb-4">
+                            <h4 className="font-medium text-neutral-700 mb-2">Members:</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {team.members.map(member => (
+                                <span key={member._id} className="badge badge-outline text-xs">{member.name}</span>
+                              ))}
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => handleSendRequest(team._id)}
+                            className="btn btn-primary w-full"
+                          >
+                            <SparkIcon className="mr-2" size={16} />
+                            Send Match Request
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="flex justify-center mb-4">
+                    <div className="bg-neutral-200 rounded-full p-4">
+                      <CoupleIcon className="text-neutral-500" size={32} />
+                    </div>
+                  </div>
+                  <p className="text-neutral-600">No potential new matches found for this team.</p>
+                  <p className="text-sm text-neutral-500 mt-2">Try checking back later or explore other teams!</p>
+                </div>
+              )
+            )}
+          </div>
+        </div>
 
        <hr style={{ margin: '20px 0' }}/>
 
@@ -287,6 +403,7 @@ const MatchingPage = () => {
                ) : <p>No accepted matches yet.</p>}
            </>
        )}
+      </div>
     </div>
   );
 };

@@ -187,14 +187,17 @@ io.on('connection', (socket) => {
         if (isPrivate) {
             // Send to recipient if online
             const recipientSocketId = userSockets[recipientId.toString()];
+            console.log(`Looking for recipient ${recipientId} in userSockets:`, userSockets);
+            
             if (recipientSocketId) {
                 io.to(recipientSocketId).emit('receiveMessage', messageToEmit);
                 console.log(`Private message ${savedMessage._id} sent to recipient ${recipientId} (socket ${recipientSocketId})`);
             } else {
-                console.log(`Recipient ${recipientId} is offline. Message saved.`);
+                console.log(`Recipient ${recipientId} is offline or not found in userSockets. Message saved for later.`);
                 // Optionally implement offline message handling/notifications later
             }
-            // Send back to sender for confirmation/display
+            
+            // Always send back to sender for confirmation/display
             socket.emit('receiveMessage', messageToEmit);
             console.log(`Private message ${savedMessage._id} sent back to sender ${socket.user.name} (socket ${socket.id})`);
 

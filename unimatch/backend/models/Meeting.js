@@ -29,8 +29,10 @@ const MeetingSchema = new mongoose.Schema({
     trim: true,
     required: [true, 'Meeting location is required.']
   },
-  // Optional: Add description/agenda
-  // description: { type: String, trim: true },
+  description: { // Optional description/agenda
+    type: String, 
+    trim: true 
+  },
   status: {
     type: String,
     enum: ['proposed', 'scheduled', 'cancelled', 'completed', 'reviewed'], // Meeting lifecycle

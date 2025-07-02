@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'; // Import Link
 import RoomList from '../components/chat/RoomList';
 import MessagesView from '../components/chat/MessagesView';
 import GroupInfo from '../components/chat/GroupInfo';
+import { MessageIcon, SparkIcon, GroupsIcon } from '../components/ui/SocialIcons';
 
 const ChatPage = () => {
     const { user, token } = useAuth();
@@ -116,7 +117,7 @@ const ChatPage = () => {
             console.log('Current state/refs:', {
                 selectedMatchIdRef: selectedMatchIdRef.current,
                 selectedPrivateChatUserIdRef: selectedPrivateChatUserIdRef.current,
-                selectedPrivateChatUser: selectedPrivateChatUser, // Check the state value
+                selectedPrivateChatUser: selectedPrivateChatUser,
                 user: user,
                 incomingMessage: message
             });
@@ -125,10 +126,23 @@ const ChatPage = () => {
                 const isCurrentlyViewingGroupChat = selectedMatchIdRef.current && !selectedPrivateChatUserIdRef.current;
                 const isCurrentlyViewingPrivateChat = selectedPrivateChatUserIdRef.current;
 
+                console.log('Message filtering logic:', {
+                    isCurrentlyViewingGroupChat,
+                    isCurrentlyViewingPrivateChat,
+                    messageIsPrivate: message.isPrivate,
+                    messageMatchId: message.matchId,
+                    currentMatchId: selectedMatchIdRef.current,
+                    messageSender: message.sender._id,
+                    messageRecipient: message.recipient?._id,
+                    currentUserId: user?._id,
+                    selectedPrivateChatUserId: selectedPrivateChatUserIdRef.current
+                });
+
                 // --- Logic for adding message to state ---
 
                 // 1. If currently viewing a group chat:
                 if (isCurrentlyViewingGroupChat && !message.isPrivate && message.matchId === selectedMatchIdRef.current) {
+                    console.log('Adding group message to state');
                     return [...prevMessages, message];
                 }
 
@@ -140,13 +154,22 @@ const ChatPage = () => {
                         (message.sender._id === selectedPrivateChatUserIdRef.current && message.recipient?._id === user?._id);
 
                     // Also ensure the private message belongs to the context match of the selected private chat user
-                    const belongsToSelectedPrivateChatContext = selectedPrivateChatUser?.matchIdContext ? message.matchId === selectedPrivateChatUser.matchIdContext : false; // Must belong to the context match
+                    const belongsToSelectedPrivateChatContext = selectedPrivateChatUser?.matchIdContext ? 
+                        message.matchId === selectedPrivateChatUser.matchIdContext : true; // Allow if no context specified
+
+                    console.log('Private message validation:', {
+                        isMessageBetweenCurrentUsers,
+                        belongsToSelectedPrivateChatContext,
+                        selectedPrivateChatUserMatchContext: selectedPrivateChatUser?.matchIdContext
+                    });
 
                     if (isMessageBetweenCurrentUsers && belongsToSelectedPrivateChatContext) {
+                        console.log('Adding private message to state');
                         return [...prevMessages, message];
                     }
                 }
 
+                console.log('Message does not match current chat context, not adding to state');
                 // If the message doesn't belong to the currently viewed chat, don't add it
                 // TODO: Potentially show a notification for new messages in other chats
                 return prevMessages;
@@ -157,7 +180,10 @@ const ChatPage = () => {
         newSocket.on('meetingProposed', (proposedMeeting) => {
             console.log('Meeting proposal received:', proposedMeeting);
             if (selectedMatchIdRef.current && proposedMeeting.match?._id === selectedMatchIdRef.current) {
-                 setMeetingProposals(prev => [...prev, proposedMeeting]);
+                // Only add if not cancelled
+                if (proposedMeeting.status !== 'cancelled') {
+                    setMeetingProposals(prev => [...prev, proposedMeeting]);
+                }
             }
         });
 
@@ -168,13 +194,22 @@ const ChatPage = () => {
                 setMeetingProposals(prev => {
                     const index = prev.findIndex(m => m._id === updatedMeeting._id);
                     if (index !== -1) {
-                        // Replace the old meeting with the updated one
-                        const newProposals = [...prev];
-                        newProposals[index] = updatedMeeting;
-                        return newProposals;
+                        // If meeting is cancelled, remove it from the list
+                        if (updatedMeeting.status === 'cancelled') {
+                            console.log('Removing cancelled meeting from proposals');
+                            return prev.filter(m => m._id !== updatedMeeting._id);
+                        } else {
+                            // Replace the old meeting with the updated one
+                            const newProposals = [...prev];
+                            newProposals[index] = updatedMeeting;
+                            return newProposals;
+                        }
                     } else {
-                        // If not found, maybe it was just proposed by this client? Add it.
-                        return [...prev, updatedMeeting];
+                        // If not found and not cancelled, add it
+                        if (updatedMeeting.status !== 'cancelled') {
+                            return [...prev, updatedMeeting];
+                        }
+                        return prev;
                     }
                 });
             }
@@ -222,7 +257,8 @@ const ChatPage = () => {
                     // Filter messages on client-side just in case API returns mixed? Or update API.
                     // Assuming API GET /messages/:matchId returns ONLY group messages for now.
                     setMessages(historyRes.data.filter(m => !m.isPrivate));
-                    setMeetingProposals(meetingsRes.data);
+                    // Filter out cancelled meetings to prevent interaction errors
+                    setMeetingProposals(meetingsRes.data.filter(m => m.status !== 'cancelled'));
                 } catch (err) {
                     console.error("Error fetching group chat data:", err);
                     setError(err.response?.data?.message || 'Failed to fetch group chat data.');
@@ -334,31 +370,49 @@ const ChatPage = () => {
 
     // --- Render ---
     return (
-        <div className="chat-page-container" style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
-            {error && <p style={{ color: 'red', position: 'absolute', top: '70px', left: '20px' }}>Error: {error}</p>}
-            <RoomList
-                acceptedMatches={acceptedMatches}
-                selectedMatch={selectedMatch}
-                onSelectMatch={handleSelectMatch}
-                getOtherTeamName={getOtherTeamName}
-                myTeams={myTeams}
-                user={user}
-            />
-            <MessagesView
-                messages={messages}
-                selectedMatch={selectedMatch}
-                selectedPrivateChatUser={selectedPrivateChatUser} // Pass the private chat user
-                user={user}
-                onSendMessage={handleSendMessage}
-            />
-            <GroupInfo
-                selectedMatch={selectedMatch}
-                meetingProposals={isPrivateChatView ? [] : meetingProposals} // No meetings in private chat view
-                api={api} // Pass api instance
-                onChatClosed={handleChatClosed} // Pass the handler down
-                onSelectPrivateChat={handleSelectPrivateChat} // Pass the private chat selection handler
-                isPrivateChatSelected={!!selectedPrivateChatUser} // Indicate if a private chat is active
-            />
+        <div className="min-h-screen bg-neutral-50">
+            {/* Chat Container - Full Height minus navbar */}
+            <div className="flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
+                {/* Chat Layout */}
+                <div className="flex-1 flex overflow-hidden">
+                    {/* Left Sidebar - Chat List */}
+                    <div className="w-80 bg-white border-r border-neutral-200 flex flex-col">
+                        <div className="flex-1 overflow-y-auto">
+                            <RoomList
+                                matches={acceptedMatches}
+                                selectedMatch={selectedMatch}
+                                onSelectMatch={handleSelectMatch}
+                                selectedPrivateChatUser={selectedPrivateChatUser}
+                                onSelectPrivateChat={handleSelectPrivateChat}
+                                isPrivateChatSelected={!!selectedPrivateChatUser}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Main Chat Area */}
+                    <div className="flex-1 flex flex-col bg-white">
+                        <MessagesView
+                            messages={messages}
+                            selectedMatch={selectedMatch}
+                            selectedPrivateChatUser={selectedPrivateChatUser}
+                            user={user}
+                            onSendMessage={handleSendMessage}
+                        />
+                    </div>
+
+                    {/* Right Sidebar - Simplified Info Panel */}
+                    <div className="w-80 bg-neutral-50 border-l border-neutral-200 flex flex-col">
+                        <GroupInfo
+                            selectedMatch={selectedMatch}
+                            meetingProposals={meetingProposals}
+                            api={api}
+                            onChatClosed={handleChatClosed}
+                            onSelectPrivateChat={handleSelectPrivateChat}
+                            isPrivateChatSelected={!!selectedPrivateChatUser}
+                        />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

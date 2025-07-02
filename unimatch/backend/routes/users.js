@@ -106,37 +106,72 @@ router.post('/me/photos', protect, upload.single('photo'), async (req, res, next
             return res.status(404).json({ message: 'User not found' });
         }
 
+        // Check if user has reached photo limit (optional)
+        const MAX_PHOTOS = 10;
+        if (user.photos.length >= MAX_PHOTOS) {
+            return res.status(400).json({ message: `Maximum number of photos reached (${MAX_PHOTOS})` });
+        }
+
+        // Check Cloudinary configuration
+        if (!process.env.CLOUDINARY_CLOUD_NAME || 
+            !process.env.CLOUDINARY_API_KEY || 
+            !process.env.CLOUDINARY_API_SECRET) {
+            console.error('Cloudinary configuration missing');
+            return res.status(500).json({ 
+                message: 'Photo upload service not configured. Please contact administrator.' 
+            });
+        }
+
         // Upload image buffer to Cloudinary using a stream
         const uploadStream = cloudinary.uploader.upload_stream(
             {
                 folder: `unimatch/user_photos/${userId}`, // Optional: Organize uploads in folders
-                // transformation: [{ width: 500, height: 500, crop: "limit" }] // Optional: Resize image
+                transformation: [{ width: 800, height: 800, crop: "limit" }], // Resize for consistency
+                format: 'jpg', // Convert to jpg for consistency
+                quality: 'auto' // Optimize quality
             },
             async (error, result) => {
                 if (error) {
                     console.error('Cloudinary Upload Error:', error);
-                    return res.status(500).json({ message: 'Error uploading photo to cloud storage' });
+                    let errorMessage = 'Error uploading photo to cloud storage';
+                    
+                    // Provide more specific error messages
+                    if (error.message.includes('Invalid cloud_name')) {
+                        errorMessage = 'Cloudinary cloud name is invalid';
+                    } else if (error.message.includes('Invalid API key')) {
+                        errorMessage = 'Cloudinary API key is invalid';
+                    } else if (error.message.includes('Invalid API secret')) {
+                        errorMessage = 'Cloudinary API secret is invalid';
+                    }
+                    
+                    return res.status(500).json({ message: errorMessage });
                 }
 
-                // Add photo info to user's photos array
-                const newPhoto = {
-                    url: result.secure_url,
-                    public_id: result.public_id,
-                    isVerified: false, // Set verification status later if needed
-                };
+                try {
+                    // Add photo info to user's photos array
+                    const newPhoto = {
+                        url: result.secure_url,
+                        public_id: result.public_id,
+                        isVerified: false, // Set verification status later if needed
+                    };
 
-                // Limit the number of photos if desired (e.g., max 5 photos)
-                // if (user.photos.length >= 5) {
-                //     // Optionally remove the oldest photo before adding new one
-                //     // Or just return an error
-                //     return res.status(400).json({ message: 'Maximum number of photos reached' });
-                // }
+                    user.photos.push(newPhoto);
+                    await user.save();
 
-                user.photos.push(newPhoto);
-                await user.save();
+                    console.log(`Photo uploaded successfully for user ${userId}: ${result.public_id}`);
 
-                // Return the updated user profile (or just the new photo info)
-                res.status(201).json(newPhoto);
+                    // Return the new photo info
+                    res.status(201).json(newPhoto);
+                } catch (saveError) {
+                    console.error('Error saving photo to database:', saveError);
+                    // Try to delete the uploaded image from Cloudinary if database save fails
+                    try {
+                        await cloudinary.uploader.destroy(result.public_id);
+                    } catch (deleteError) {
+                        console.error('Error cleaning up Cloudinary image:', deleteError);
+                    }
+                    return res.status(500).json({ message: 'Error saving photo information' });
+                }
             }
         );
 
@@ -144,10 +179,12 @@ router.post('/me/photos', protect, upload.single('photo'), async (req, res, next
         uploadStream.end(req.file.buffer);
 
     } catch (err) {
+        console.error('Photo upload route error:', err);
         next(err); // Pass error to middleware
     }
 }, (error, req, res, next) => { // This is Multer's error handler
     // Handle Multer errors (e.g., file size limit) - pass to general handler
+    console.error('Multer error:', error);
     res.status(400).json({ message: error.message });
 });
 
