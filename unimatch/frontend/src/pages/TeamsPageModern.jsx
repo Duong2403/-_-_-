@@ -1,19 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
 import { 
   GroupsIcon,
+  SparkIcon,
   CoupleIcon,
   DateIcon,
-  CoffeeIcon,
-  SparkIcon,
   UniversityIcon
 } from '../components/ui/SocialIcons';
 import { 
   PlusIcon, 
   StarIcon,
   CheckIcon,
-  ArrowRightIcon 
+  ArrowRightIcon,
+  TrashIcon,
+  LogoutIcon,
+  XIcon,
+  ChevronDownIcon,
+  ChevronUpIcon
 } from '../components/ui/Icons';
 
 // --- Predefined Options for Selectors ---
@@ -296,7 +302,9 @@ const CreateTeamForm = ({ onCreateSuccess }) => {
 };
 
 // Team Card Component
-const TeamCard = ({ team }) => {
+const TeamCard = ({ team, isMyTeam, onLeave, onDelete }) => {
+  const { user } = useAuth();
+  
   const getGenderIcon = (gender) => {
     if (gender === 'Male') return <GroupsIcon size={20} />;
     if (gender === 'Female') return <CoupleIcon size={20} />;
@@ -327,6 +335,9 @@ const TeamCard = ({ team }) => {
     return 'bg-gradient-primary';
   };
 
+  const isCreator = team.createdBy?._id === user?.id || team.createdBy === user?.id;
+  const isMember = team.members?.some(member => member._id === user?.id || member === user?.id);
+
   return (
     <div className="card group hover:shadow-xl transition-all duration-300 transform hover:scale-105">
       <div className="card-body p-6">
@@ -336,7 +347,7 @@ const TeamCard = ({ team }) => {
             {getPurposeIcon(team.meetingPurpose)}
           </div>
           <div className="flex gap-2">
-            <span className="badge badge-outline">{team.teamComposition || `${team.members.length} members`}</span>
+            <span className="badge badge-outline">{team.teamComposition || `${team.members?.length || 0} members`}</span>
             <span className={`badge text-white ${getGenderColor(team.teamGender)}`}>
               {getGenderIcon(team.teamGender)}
               <span className="ml-1">{team.teamGender}</span>
@@ -405,10 +416,35 @@ const TeamCard = ({ team }) => {
           )}
         </div>
 
-        {/* Action Button */}
-        <Link to={`/teams/${team._id}`} className="btn btn-primary w-full mt-6 group-hover:bg-primary-dark transition-colors">
-          View Details <ArrowRightIcon className="ml-2" size={16} />
-        </Link>
+        {/* Action Buttons */}
+        <div className="mt-6 space-y-2">
+          <Link to={`/teams/${team._id}`} className="btn btn-primary w-full group-hover:bg-primary-dark transition-colors">
+            View Details <ArrowRightIcon className="ml-2" size={16} />
+          </Link>
+          
+          {/* Management Actions for My Teams */}
+          {isMyTeam && (
+            <div className="flex gap-2">
+              {isCreator ? (
+                <button
+                  onClick={() => onDelete(team)}
+                  className="btn btn-error w-full text-sm"
+                >
+                  <TrashIcon className="mr-1" size={14} />
+                  Delete Team
+                </button>
+              ) : isMember && (
+                <button
+                  onClick={() => onLeave(team)}
+                  className="btn btn-outline w-full text-sm"
+                >
+                  <LogoutIcon className="mr-1" size={14} />
+                  Leave Team
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -416,10 +452,13 @@ const TeamCard = ({ team }) => {
 
 // Main Teams Page Component
 const TeamsPageModern = () => {
+  const { user } = useAuth();
   const [myTeams, setMyTeams] = useState([]);
   const [discoverTeams, setDiscoverTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+
 
   useEffect(() => {
     const fetchTeams = async () => {
@@ -444,6 +483,42 @@ const TeamsPageModern = () => {
 
   const handleTeamCreated = (newTeam) => {
     setMyTeams(prev => [newTeam, ...prev]);
+  };
+
+
+
+  const handleLeaveTeam = async (team) => {
+    const confirmLeave = window.confirm(
+      `Are you sure you want to leave "${team.name}"? This action cannot be undone.`
+    );
+    
+    if (!confirmLeave) return;
+
+    try {
+      await api.post(`/teams/${team._id}/leave`);
+      setMyTeams(prev => prev.filter(t => t._id !== team._id));
+      alert('Successfully left the team.');
+    } catch (err) {
+      console.error("Error leaving team:", err);
+      alert(err.response?.data?.message || 'Failed to leave team.');
+    }
+  };
+
+  const handleDeleteTeam = async (team) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete "${team.name}"? This action cannot be undone and will remove all team data.`
+    );
+    
+    if (!confirmDelete) return;
+
+    try {
+      await api.delete(`/teams/${team._id}`);
+      setMyTeams(prev => prev.filter(t => t._id !== team._id));
+      alert('Team successfully deleted.');
+    } catch (err) {
+      console.error("Error deleting team:", err);
+      alert(err.response?.data?.message || 'Failed to delete team.');
+    }
   };
 
   if (loading) {
@@ -509,7 +584,13 @@ const TeamsPageModern = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {myTeams.map(team => (
-                <TeamCard key={team._id} team={team} />
+                <TeamCard 
+                  key={team._id} 
+                  team={team} 
+                  isMyTeam={true}
+                  onLeave={handleLeaveTeam}
+                  onDelete={handleDeleteTeam}
+                />
               ))}
             </div>
           </div>
@@ -529,7 +610,11 @@ const TeamsPageModern = () => {
            {discoverTeams.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {discoverTeams.map(team => (
-                <TeamCard key={team._id} team={team} />
+                <TeamCard 
+                  key={team._id} 
+                  team={team} 
+                  isMyTeam={false}
+                />
               ))}
             </div>
              ) : (
@@ -546,6 +631,8 @@ const TeamsPageModern = () => {
                 </div>
             )}
         </div>
+
+
       </div>
     </div>
   );

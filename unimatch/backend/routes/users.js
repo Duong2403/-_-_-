@@ -300,13 +300,15 @@ router.get('/:userId/profile', protect, async (req, res, next) => {
 });
 
 
-// Optional: Route to delete a photo
 // @desc    Delete a photo from user profile
 // @route   DELETE /api/users/me/photos/:photo_public_id
 // @access  Private
 router.delete('/me/photos/:photo_public_id', protect, async (req, res, next) => { // Added next
     const userId = req.user.id;
-    const photoPublicId = req.params.photo_public_id;
+    // Decode the URL-encoded public_id to handle forward slashes
+    const photoPublicId = decodeURIComponent(req.params.photo_public_id);
+
+    console.log(`Attempting to delete photo with public_id: ${photoPublicId} for user: ${userId}`);
 
     try {
         const user = await User.findById(userId);
@@ -317,19 +319,23 @@ router.delete('/me/photos/:photo_public_id', protect, async (req, res, next) => 
         // Find the photo in the user's array
         const photoIndex = user.photos.findIndex(p => p.public_id === photoPublicId);
         if (photoIndex === -1) {
+            console.log(`Photo not found in user's photos array. Available photos:`, user.photos.map(p => p.public_id));
             return res.status(404).json({ message: 'Photo not found' });
         }
 
         // Remove photo from Cloudinary
+        console.log(`Deleting photo from Cloudinary: ${photoPublicId}`);
         await cloudinary.uploader.destroy(photoPublicId);
 
         // Remove photo from user's array
         user.photos.splice(photoIndex, 1);
         await user.save();
 
+        console.log(`Photo deleted successfully: ${photoPublicId}`);
         res.json({ message: 'Photo deleted successfully' });
 
     } catch (err) {
+        console.error('Error deleting photo:', err);
         next(err); // Pass error to middleware
     }
 });

@@ -33,13 +33,18 @@ const ProfilePage = () => {
       }
       setError('');
       try {
-          await api.delete(`/users/me/photos/${publicId}`);
+          // URL encode the public_id to handle forward slashes
+          const encodedPublicId = encodeURIComponent(publicId);
+          await api.delete(`/users/me/photos/${encodedPublicId}`);
           // Update state after successful deletion
           const updatedPhotos = profileData.photos.filter(p => p.public_id !== publicId);
           setProfileData(prevData => ({ ...prevData, photos: updatedPhotos }));
           setAuthUser(prevData => ({ ...prevData, photos: updatedPhotos }));
+          // Show success message
+          alert('Photo deleted successfully!');
       } catch (err) {
           console.error("Error deleting photo:", err);
+          console.error("Error details:", err.response?.data);
           setError(err.response?.data?.message || 'Failed to delete photo.');
       }
   };

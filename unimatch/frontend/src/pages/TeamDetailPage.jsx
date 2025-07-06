@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import AuthContext from '../context/AuthContext';
 import AddMemberModal from '../components/AddMemberModal';
+import EditTeamModal from '../components/EditTeamModal';
 import { 
     PlusIcon,
     ArrowRightIcon,
@@ -44,6 +45,7 @@ const TeamDetailPage = () => {
     const [error, setError] = useState('');
     const [isJoining, setIsJoining] = useState(false);
     const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
     useEffect(() => {
         const fetchTeam = async () => {
@@ -93,6 +95,11 @@ const TeamDetailPage = () => {
         }
     };
 
+    const handleEditSuccess = async (updatedTeam) => {
+        setTeam(updatedTeam);
+        setIsEditModalOpen(false);
+    };
+
     const isUserMember = team?.members.some(member => member._id === user.id);
     const isUserCreator = team?.createdBy._id === user.id;
 
@@ -138,7 +145,10 @@ const TeamDetailPage = () => {
                                         >
                                             <PlusIcon size={16} className="mr-2" /> Add Member
                                         </button>
-                                        <button className="btn btn-outline">
+                                        <button 
+                                            onClick={() => setIsEditModalOpen(true)}
+                                            className="btn btn-outline"
+                                        >
                                             <PlusIcon size={16} className="mr-2" /> Edit Group
                                         </button>
                                     </>
@@ -149,9 +159,9 @@ const TeamDetailPage = () => {
                                 ) : (
                                     <button onClick={handleJoinTeam} disabled={isJoining} className="btn btn-primary">
                                         {isJoining ? 'Joining...' : <><PlusIcon size={16} className="mr-2" /> Join Group</>}
-                    </button>
-                )}
-            </div>
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -252,6 +262,14 @@ const TeamDetailPage = () => {
                 onClose={() => setIsAddMemberModalOpen(false)}
                 team={team}
                 onMemberAdded={handleMemberAdded}
+            />
+
+            {/* Edit Team Modal */}
+            <EditTeamModal 
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                team={team}
+                onEditSuccess={handleEditSuccess}
             />
         </div>
     );
