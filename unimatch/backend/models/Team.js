@@ -23,17 +23,43 @@ const TeamSchema = new mongoose.Schema({
     type: String,
     maxlength: [500, 'Description cannot be more than 500 characters'],
   },
-  purpose: { // Added field
+  
+  // --- High-Impact Practical Fields ---
+  teamComposition: {
     type: String,
-    enum: ['Study Group', 'Project Team', 'Social Club', 'Competition Team', 'Other'],
-    default: 'Other',
+    trim: true,
+    maxlength: [10, 'Team composition cannot be more than 10 characters'], // e.g., "3:3", "2:2"
   },
-  interests: [String], // Added field - Array of strings
-  meetingPreference: { // Added field
+  teamVibe: [{
     type: String,
-    enum: ['Online', 'In-Person', 'Hybrid', 'Flexible'],
-    default: 'Flexible',
+    trim: true,
+  }],
+  topInterests: [{
+    type: String,
+    trim: true,
+  }],
+  meetingPurpose: [{
+    type: String,
+    trim: true,
+  }],
+  targetTeamVibe: [{
+    type: String,
+    trim: true,
+  }],
+  availability: [{
+    type: String,
+    trim: true,
+  }],
+  preferredLocation: {
+    type: String,
+    trim: true,
   },
+  teamGender: {
+    type: String,
+    enum: ['Male', 'Female', 'Mixed'],
+    required: [true, 'Team gender is required'],
+  },
+  
   // Optional: Status field (e.g., 'forming', 'active', 'matched')
   status: {
     type: String,

@@ -151,9 +151,11 @@ const ProfilePage = () => {
                   <div>
                     <h3 className="text-2xl font-semibold text-neutral-800">{displayUser.name}</h3>
                     <p className="text-neutral-600 mb-2">{displayUser.email}</p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="badge badge-primary">{displayUser.university}</span>
                       {displayUser.age && <span className="badge badge-outline">Age {displayUser.age}</span>}
+                      {displayUser.major && <span className="badge badge-outline">{displayUser.major}</span>}
+                      {displayUser.mbti && <span className="badge badge-secondary">{displayUser.mbti}</span>}
                     </div>
                   </div>
                 </div>
@@ -164,6 +166,197 @@ const ProfilePage = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Enhanced Profile Sections */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              
+              {/* Personality & Social Style */}
+              {(displayUser.personalityTraits?.length > 0 || displayUser.socialStyle) && (
+                <div className="card animate-slide-up">
+                  <div className="card-header">
+                    <h3 className="text-lg font-semibold text-neutral-800 flex items-center gap-2">
+                      🧠 Personality
+                    </h3>
+                  </div>
+                  <div className="card-body">
+                    {displayUser.socialStyle && (
+                      <div className="mb-4">
+                        <span className="text-sm font-medium text-neutral-600">Social Style:</span>
+                        <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                          {displayUser.socialStyle}
+                        </span>
+                      </div>
+                    )}
+                    {displayUser.personalityTraits?.length > 0 && (
+                      <div>
+                        <span className="text-sm font-medium text-neutral-600 block mb-2">Personality Traits:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {displayUser.personalityTraits.map((trait, index) => (
+                            <span key={index} className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
+                              {trait}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Academic Interests */}
+              {displayUser.academicInterests?.length > 0 && (
+                <div className="card animate-slide-up">
+                  <div className="card-header">
+                    <h3 className="text-lg font-semibold text-neutral-800 flex items-center gap-2">
+                      📚 Academic Interests
+                    </h3>
+                  </div>
+                  <div className="card-body">
+                    <div className="flex flex-wrap gap-2">
+                      {displayUser.academicInterests.map((interest, index) => (
+                        <span key={index} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                          {interest}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Hobbies & Activities */}
+              {displayUser.hobbies?.length > 0 && (
+                <div className="card animate-slide-up">
+                  <div className="card-header">
+                    <h3 className="text-lg font-semibold text-neutral-800 flex items-center gap-2">
+                      🎯 Hobbies & Activities
+                    </h3>
+                  </div>
+                  <div className="card-body">
+                    <div className="flex flex-wrap gap-2">
+                      {displayUser.hobbies.map((hobby, index) => (
+                        <span key={index} className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                          {hobby}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Entertainment Preferences */}
+              {(displayUser.musicGenres?.length > 0 || displayUser.movieGenres?.length > 0) && (
+                <div className="card animate-slide-up">
+                  <div className="card-header">
+                    <h3 className="text-lg font-semibold text-neutral-800 flex items-center gap-2">
+                      🎵 Entertainment
+                    </h3>
+                  </div>
+                  <div className="card-body space-y-4">
+                    {displayUser.musicGenres?.length > 0 && (
+                      <div>
+                        <span className="text-sm font-medium text-neutral-600 block mb-2">Music:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {displayUser.musicGenres.map((genre, index) => (
+                            <span key={index} className="px-2 py-1 bg-pink-100 text-pink-800 rounded-full text-sm">
+                              {genre}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {displayUser.movieGenres?.length > 0 && (
+                      <div>
+                        <span className="text-sm font-medium text-neutral-600 block mb-2">Movies:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {displayUser.movieGenres.map((genre, index) => (
+                            <span key={index} className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">
+                              {genre}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Sports & Fitness */}
+              {displayUser.sports?.length > 0 && (
+                <div className="card animate-slide-up">
+                  <div className="card-header">
+                    <h3 className="text-lg font-semibold text-neutral-800 flex items-center gap-2">
+                      ⚽ Sports & Fitness
+                    </h3>
+                  </div>
+                  <div className="card-body">
+                    <div className="flex flex-wrap gap-2">
+                      {displayUser.sports.map((sport, index) => (
+                        <span key={index} className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">
+                          {sport}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Friendship Goals */}
+              {displayUser.friendshipGoals?.length > 0 && (
+                <div className="card animate-slide-up">
+                  <div className="card-header">
+                    <h3 className="text-lg font-semibold text-neutral-800 flex items-center gap-2">
+                      👥 Looking For
+                    </h3>
+                  </div>
+                  <div className="card-body">
+                    <div className="flex flex-wrap gap-2">
+                      {displayUser.friendshipGoals.map((goal, index) => (
+                        <span key={index} className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-sm">
+                          {goal}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Languages & Food */}
+              {(displayUser.languages?.length > 0 || displayUser.foodPreferences?.length > 0) && (
+                <div className="card animate-slide-up">
+                  <div className="card-header">
+                    <h3 className="text-lg font-semibold text-neutral-800 flex items-center gap-2">
+                      🌍 Lifestyle
+                    </h3>
+                  </div>
+                  <div className="card-body space-y-4">
+                    {displayUser.languages?.length > 0 && (
+                      <div>
+                        <span className="text-sm font-medium text-neutral-600 block mb-2">Languages:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {displayUser.languages.map((language, index) => (
+                            <span key={index} className="px-2 py-1 bg-cyan-100 text-cyan-800 rounded-full text-sm">
+                              {language}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {displayUser.foodPreferences?.length > 0 && (
+                      <div>
+                        <span className="text-sm font-medium text-neutral-600 block mb-2">Food Preferences:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {displayUser.foodPreferences.map((food, index) => (
+                            <span key={index} className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">
+                              {food}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Photos Section */}

@@ -42,6 +42,18 @@ router.get('/me', protect, async (req, res, next) => { // Added next
       university: user.university,
       bio: user.bio,
       photos: user.photos,
+      major: user.major,
+      mbti: user.mbti,
+      socialStyle: user.socialStyle,
+      academicInterests: user.academicInterests,
+      personalityTraits: user.personalityTraits,
+      hobbies: user.hobbies,
+      musicGenres: user.musicGenres,
+      movieGenres: user.movieGenres,
+      sports: user.sports,
+      friendshipGoals: user.friendshipGoals,
+      languages: user.languages,
+      foodPreferences: user.foodPreferences,
       createdAt: user.createdAt,
     });
   } catch (err) {
@@ -53,7 +65,22 @@ router.get('/me', protect, async (req, res, next) => { // Added next
 // @route   PUT /api/users/me
 // @access  Private
 router.put('/me', protect, async (req, res, next) => { // Added next
-  const { name, bio, /* other updatable fields */ } = req.body;
+  const { 
+    name, 
+    bio, 
+    major,
+    mbti,
+    socialStyle,
+    academicInterests,
+    personalityTraits,
+    hobbies,
+    musicGenres,
+    movieGenres,
+    sports,
+    friendshipGoals,
+    languages,
+    foodPreferences
+  } = req.body;
   const userId = req.user.id;
 
   try {
@@ -64,9 +91,21 @@ router.put('/me', protect, async (req, res, next) => { // Added next
     }
 
     // Update fields if they are provided in the request body
-    if (name) user.name = name;
-    if (bio) user.bio = bio;
-    // Add other fields here...
+    if (name !== undefined) user.name = name;
+    if (bio !== undefined) user.bio = bio;
+    if (major !== undefined) user.major = major;
+    if (mbti !== undefined) user.mbti = mbti;
+    if (socialStyle !== undefined) user.socialStyle = socialStyle;
+    if (academicInterests !== undefined) user.academicInterests = academicInterests;
+    if (personalityTraits !== undefined) user.personalityTraits = personalityTraits;
+    if (hobbies !== undefined) user.hobbies = hobbies;
+    if (musicGenres !== undefined) user.musicGenres = musicGenres;
+    if (movieGenres !== undefined) user.movieGenres = movieGenres;
+    if (sports !== undefined) user.sports = sports;
+    if (friendshipGoals !== undefined) user.friendshipGoals = friendshipGoals;
+    if (languages !== undefined) user.languages = languages;
+    if (foodPreferences !== undefined) user.foodPreferences = foodPreferences;
+    
     // Note: Email, age, university, password changes might need separate, more secure routes/logic
 
     const updatedUser = await user.save();
@@ -80,6 +119,18 @@ router.put('/me', protect, async (req, res, next) => { // Added next
       university: updatedUser.university,
       bio: updatedUser.bio,
       photos: updatedUser.photos,
+      major: updatedUser.major,
+      mbti: updatedUser.mbti,
+      socialStyle: updatedUser.socialStyle,
+      academicInterests: updatedUser.academicInterests,
+      personalityTraits: updatedUser.personalityTraits,
+      hobbies: updatedUser.hobbies,
+      musicGenres: updatedUser.musicGenres,
+      movieGenres: updatedUser.movieGenres,
+      sports: updatedUser.sports,
+      friendshipGoals: updatedUser.friendshipGoals,
+      languages: updatedUser.languages,
+      foodPreferences: updatedUser.foodPreferences,
       createdAt: updatedUser.createdAt,
     });
 

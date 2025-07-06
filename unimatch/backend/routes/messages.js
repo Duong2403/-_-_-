@@ -1,9 +1,26 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const Message = require('../models/Message');
 const Match = require('../models/Match');
 const Team = require('../models/Team');
 const { protect } = require('../middleware/authMiddleware');
+const cloudinary = require('../config/cloudinaryConfig');
+
+// Configure multer for image uploads
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Not an image! Please upload an image file.'), false);
+        }
+    },
+});
 
 // Helper function to check if user is a member of a team involved in the match
 const isUserInMatch = async (matchId, userId) => {
@@ -103,5 +120,174 @@ async function getTeamIdsByUserId(userId) {
     return teams.map(team => team._id);
 }
 
+// @desc    Upload image for message
+// @route   POST /api/messages/upload-image
+// @access  Private
+router.post('/upload-image', protect, upload.single('image'), async (req, res, next) => {
+    try {
+        console.log('Image upload request received:', {
+            body: req.body,
+            fileInfo: req.file ? {
+                originalname: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size
+            } : 'No file',
+            userId: req.user.id
+        });
+
+        const { matchId, isPrivate, recipientId } = req.body;
+        const userId = req.user.id;
+
+        // Validate required fields
+        if (!matchId) {
+            console.log('Validation failed: Match ID is required');
+            return res.status(400).json({ message: 'Match ID is required' });
+        }
+
+        if (!req.file) {
+            console.log('Validation failed: No file uploaded');
+            return res.status(400).json({ message: 'Please upload an image file' });
+        }
+
+        if (isPrivate === 'true' && !recipientId) {
+            console.log('Validation failed: Recipient ID is required for private messages');
+            return res.status(400).json({ message: 'Recipient ID is required for private messages' });
+        }
+
+        // Authorization: Check if user is part of this match
+        const userIsInMatch = await isUserInMatch(matchId, userId);
+        if (!userIsInMatch) {
+            return res.status(403).json({ message: 'Not authorized to send messages in this match.' });
+        }
+
+        // Upload image to Cloudinary
+        console.log('Starting Cloudinary upload...');
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder: `unimatch/chat_images/${matchId}`,
+                resource_type: 'image',
+                transformation: [
+                    { width: 800, height: 600, crop: 'limit', quality: 'auto' }
+                ]
+            },
+            async (error, result) => {
+                if (error) {
+                    console.error('Cloudinary Upload Error:', error);
+                    return res.status(500).json({ message: 'Error uploading image to cloud storage' });
+                }
+
+                console.log('Cloudinary upload successful:', {
+                    public_id: result.public_id,
+                    secure_url: result.secure_url,
+                    width: result.width,
+                    height: result.height
+                });
+
+                try {
+                    // Create message with image attachment
+                    const messageData = {
+                        match: matchId,
+                        sender: userId,
+                        messageType: 'image',
+                        attachment: {
+                            url: result.secure_url,
+                            publicId: result.public_id,
+                            filename: req.file.originalname,
+                            size: req.file.size,
+                            width: result.width,
+                            height: result.height,
+                        },
+                        isPrivate: isPrivate === 'true',
+                    };
+
+                    if (isPrivate === 'true') {
+                        messageData.recipient = recipientId;
+                    }
+
+                    const message = new Message(messageData);
+                    await message.save();
+                    
+                    // Populate sender info for response
+                    await message.populate('sender', 'name');
+
+                    console.log(`Image message uploaded successfully: ${result.public_id}`);
+                    res.status(201).json(message);
+
+                } catch (dbError) {
+                    console.error('Database save error:', dbError);
+                    // Clean up uploaded image if database save fails
+                    try {
+                        await cloudinary.uploader.destroy(result.public_id);
+                    } catch (cleanupError) {
+                        console.error('Failed to cleanup uploaded image:', cleanupError);
+                    }
+                    res.status(500).json({ message: 'Error saving message to database' });
+                }
+            }
+        );
+
+        // Pipe the buffer from multer into the Cloudinary upload stream
+        uploadStream.end(req.file.buffer);
+
+    } catch (err) {
+        console.error('Image upload route error:', err);
+        next(err);
+    }
+});
+
+// @desc    Send text/emoji message
+// @route   POST /api/messages
+// @access  Private
+router.post('/', protect, async (req, res, next) => {
+    try {
+        const { matchId, text, messageType = 'text', isPrivate = false, recipientId } = req.body;
+        const userId = req.user.id;
+
+        // Validate required fields
+        if (!matchId) {
+            return res.status(400).json({ message: 'Match ID is required' });
+        }
+
+        if (!text || !text.trim()) {
+            return res.status(400).json({ message: 'Message text is required' });
+        }
+
+        if (isPrivate && !recipientId) {
+            return res.status(400).json({ message: 'Recipient ID is required for private messages' });
+        }
+
+        // Authorization: Check if user is part of this match
+        const userIsInMatch = await isUserInMatch(matchId, userId);
+        if (!userIsInMatch) {
+            return res.status(403).json({ message: 'Not authorized to send messages in this match.' });
+        }
+
+        // Create message
+        const messageData = {
+            match: matchId,
+            sender: userId,
+            text: text.trim(),
+            messageType: messageType,
+            isPrivate: isPrivate,
+        };
+
+        if (isPrivate) {
+            messageData.recipient = recipientId;
+        }
+
+        const message = new Message(messageData);
+        await message.save();
+        
+        // Populate sender info for response
+        await message.populate('sender', 'name');
+
+        console.log(`Message sent successfully: ${message._id}`);
+        res.status(201).json(message);
+
+    } catch (err) {
+        console.error('Send message route error:', err);
+        next(err);
+    }
+});
 
 module.exports = router;

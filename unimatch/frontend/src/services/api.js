@@ -46,4 +46,31 @@ api.interceptors.request.use(
 // );
 
 
+// Image upload function for chat messages
+export const uploadChatImage = async (imageFile, matchId, isPrivate = false, recipientId = null) => {
+  console.log('uploadChatImage called with:', { imageFile, matchId, isPrivate, recipientId });
+  
+  const formData = new FormData();
+  formData.append('image', imageFile);
+  formData.append('matchId', matchId || '');
+  formData.append('isPrivate', (isPrivate || false).toString());
+  if (recipientId) {
+    formData.append('recipientId', recipientId);
+  }
+
+  const response = await api.post('/messages/upload-image', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return response.data;
+};
+
+// Send text/emoji message
+export const sendTextMessage = async (messageData) => {
+  const response = await api.post('/messages', messageData);
+  return response.data;
+};
+
 export default api;

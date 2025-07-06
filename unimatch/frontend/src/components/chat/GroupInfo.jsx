@@ -62,9 +62,24 @@ const GroupInfo = ({ selectedMatch, meetingProposals, api, onChatClosed, onSelec
         setRespondingMeetingId(meetingId);
         try {
             const requestData = { acceptedSlotIndex: slotIndex, status };
-            await api.put(`/meetings/${meetingId}/respond`, requestData);
+            console.log('Sending meeting response:', requestData);
+            const response = await api.put(`/meetings/${meetingId}/respond`, requestData);
+            console.log('Meeting response successful:', response.data);
+            
+            // Show success message
+            const successMessage = status === 'accepted' ? 
+                'Meeting time slot accepted! Waiting for other participants...' : 
+                'Meeting time slot declined.';
+            alert(successMessage);
+            
+            // The meeting update will be received via socket events and update the UI automatically
         } catch (err) {
             console.error("Error responding to meeting proposal:", err);
+            console.error("Error details:", err.response?.data);
+            
+            // Show user-friendly error message
+            const errorMessage = err.response?.data?.message || 'Failed to respond to meeting proposal';
+            alert(errorMessage);
         } finally {
             setRespondingMeetingId(null);
         }
@@ -229,32 +244,128 @@ const GroupInfo = ({ selectedMatch, meetingProposals, api, onChatClosed, onSelec
                                     )}
 
                                     {proposal.status === 'proposed' && (
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleRespond(proposal._id, 0, 'accepted')}
-                                                disabled={respondingMeetingId === proposal._id}
-                                                className="flex-1 px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors disabled:opacity-50"
-                                            >
-                                                Accept
-                                            </button>
-                                            <button
-                                                onClick={() => handleRespond(proposal._id, 0, 'rejected')}
-                                                disabled={respondingMeetingId === proposal._id}
-                                                className="flex-1 px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors disabled:opacity-50"
-                                            >
-                                                Decline
-                                            </button>
+                                        <div className="space-y-2">
+                                            {/* Display proposed time slots */}
+                                            <div className="text-sm text-neutral-600 mb-2">
+                                                <strong>Proposed Times:</strong>
+                                            </div>
+                                            {proposal.proposedSlots?.map((slot, index) => {
+                                                // Check if current user has already responded to this slot
+                                                const userResponse = proposal.responses?.find(r => r.userId._id === user._id || r.userId === user._id);
+                                                const hasUserResponded = userResponse && userResponse.acceptedSlotIndex === index;
+                                                const userResponseStatus = userResponse?.status;
+                                                
+                                                return (
+                                                    <div key={index} className="flex items-center justify-between p-2 bg-neutral-50 rounded border">
+                                                        <div className="text-sm">
+                                                            <div className="font-medium">
+                                                                {new Date(slot.startTime).toLocaleDateString()} 
+                                                            </div>
+                                                            <div className="text-neutral-600">
+                                                                {new Date(slot.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - 
+                                                                {new Date(slot.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                            </div>
+                                                            {hasUserResponded && (
+                                                                <div className={`text-xs mt-1 font-medium ${
+                                                                    userResponseStatus === 'accepted' ? 'text-green-600' : 'text-red-600'
+                                                                }`}>
+                                                                    You {userResponseStatus === 'accepted' ? 'accepted' : 'declined'} this slot
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex gap-1">
+                                                            <button
+                                                                onClick={() => handleRespond(proposal._id, index, 'accepted')}
+                                                                disabled={respondingMeetingId === proposal._id}
+                                                                className={`px-2 py-1 text-white text-xs rounded transition-colors disabled:opacity-50 ${
+                                                                    hasUserResponded && userResponseStatus === 'accepted' 
+                                                                        ? 'bg-green-600' 
+                                                                        : 'bg-green-500 hover:bg-green-600'
+                                                                }`}
+                                                            >
+                                                                Accept
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleRespond(proposal._id, index, 'rejected')}
+                                                                disabled={respondingMeetingId === proposal._id}
+                                                                className={`px-2 py-1 text-white text-xs rounded transition-colors disabled:opacity-50 ${
+                                                                    hasUserResponded && userResponseStatus === 'rejected' 
+                                                                        ? 'bg-red-600' 
+                                                                        : 'bg-red-500 hover:bg-red-600'
+                                                                }`}
+                                                            >
+                                                                Decline
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            
+                                            {/* Location info */}
+                                            {proposal.location && (
+                                                <div className="text-sm text-neutral-600 mt-2">
+                                                    <strong>Location:</strong> {proposal.location}
+                                                </div>
+                                            )}
+                                            
+                                            {/* Response Summary */}
+                                            {proposal.responses && proposal.responses.length > 0 && (
+                                                <div className="mt-3 p-2 bg-neutral-100 rounded">
+                                                    <div className="text-sm font-medium text-neutral-700 mb-1">
+                                                        Responses ({proposal.responses.length}):
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        {proposal.responses.map((response, idx) => (
+                                                            <div key={idx} className="text-xs flex items-center justify-between">
+                                                                <span className="text-neutral-600">
+                                                                    {response.userId?.name || 'Unknown User'}
+                                                                </span>
+                                                                <span className={`px-2 py-1 rounded text-xs ${
+                                                                    response.status === 'accepted' 
+                                                                        ? 'bg-green-100 text-green-800' 
+                                                                        : 'bg-red-100 text-red-800'
+                                                                }`}>
+                                                                    {response.status === 'accepted' ? 
+                                                                        `✓ Slot ${response.acceptedSlotIndex + 1}` : 
+                                                                        '✗ Declined'
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
                                     {proposal.status === 'scheduled' && (
-                                        <button
-                                            onClick={() => handleCancelMeeting(proposal._id)}
-                                            disabled={respondingMeetingId === proposal._id}
-                                            className="w-full px-3 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600 transition-colors disabled:opacity-50"
-                                        >
-                                            Cancel Meeting
-                                        </button>
+                                        <div className="space-y-2">
+                                            {/* Display scheduled time slot */}
+                                            {proposal.scheduledSlot && (
+                                                <div className="p-2 bg-green-50 rounded border border-green-200">
+                                                    <div className="text-sm font-medium text-green-800">
+                                                        📅 {new Date(proposal.scheduledSlot.startTime).toLocaleDateString()}
+                                                    </div>
+                                                    <div className="text-sm text-green-700">
+                                                        ⏰ {new Date(proposal.scheduledSlot.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - 
+                                                        {new Date(proposal.scheduledSlot.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                    </div>
+                                                    {proposal.location && (
+                                                        <div className="text-sm text-green-700">
+                                                            📍 {proposal.location}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
+                                            <button
+                                                onClick={() => handleCancelMeeting(proposal._id)}
+                                                disabled={respondingMeetingId === proposal._id}
+                                                className="w-full px-3 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600 transition-colors disabled:opacity-50"
+                                            >
+                                                Cancel Meeting
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             ))}
@@ -266,19 +377,27 @@ const GroupInfo = ({ selectedMatch, meetingProposals, api, onChatClosed, onSelec
             {/* Modals */}
             {isScheduleModalOpen && (
                 <ScheduleMeetingModal
-                    isOpen={isScheduleModalOpen}
+                    matchId={selectedMatch._id}
                     onClose={() => setIsScheduleModalOpen(false)}
-                    selectedMatch={selectedMatch}
-                    api={api}
+                    onMeetingProposed={(newMeeting) => {
+                        // Handle the new meeting proposal
+                        console.log('Meeting proposed:', newMeeting);
+                        // The meeting will be received via socket events in ChatPage
+                    }}
                 />
             )}
 
             {isReviewModalOpen && (
                 <SubmitReviewModal
-                    isOpen={isReviewModalOpen}
-                    onClose={() => setIsReviewModalOpen(false)}
+                    match={selectedMatch}
+                    userTeam={userTeam}
                     opponentTeam={opponentTeam}
-                    api={api}
+                    onClose={() => setIsReviewModalOpen(false)}
+                    onReviewSubmitted={(newReview) => {
+                        // Handle the new review submission
+                        console.log('Review submitted:', newReview);
+                        alert('Review submitted successfully!');
+                    }}
                 />
             )}
         </div>

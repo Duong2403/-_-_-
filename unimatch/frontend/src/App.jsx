@@ -8,6 +8,7 @@ import RegisterPage from './components/Register'; // Using component directly fo
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import TeamsPage from './pages/TeamsPage';
+import TeamsPageModern from './pages/TeamsPageModern'; // Import the enhanced teams page
 import TeamDetailPage from './pages/TeamDetailPage'; // Import the new page
 import MatchingPage from './pages/MatchingPage';
 import ChatPage from './pages/ChatPage';
@@ -321,7 +322,8 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/teams" element={<TeamsPage />} />
+            <Route path="/teams" element={<TeamsPageModern />} />
+            <Route path="/teams-modern" element={<TeamsPageModern />} /> {/* Alternative route for enhanced teams page */}
             <Route path="/teams/:teamId" element={<TeamDetailPage />} /> {/* Add route for team detail */}
             <Route path="/matching" element={<MatchingPage />} />
             <Route path="/chat" element={<ChatPage />} />

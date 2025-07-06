@@ -1,5 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { SendIcon, EmojiIcon, AttachmentIcon, MessageIcon, GroupsIcon } from '../ui/SocialIcons';
+import { uploadChatImage } from '../../services/api';
+import EmojiPicker from './EmojiPicker';
+import ImageUpload from './ImageUpload';
 
 const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, onSendMessage }) => {
     const messagesEndRef = useRef(null);
@@ -8,7 +11,14 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
     const [isTyping, setIsTyping] = useState(false);
     
     // Message pagination state
-    const [visibleMessageCount, setVisibleMessageCount] = useState(50);
+    const [visibleMessageCount, setVisibleMessageCount] = useState(10);
+    
+    // Emoji picker state
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    
+    // Image upload state
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     // Scroll to bottom when new messages arrive
     useEffect(() => {
@@ -32,6 +42,118 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
     // Load more messages handler
     const handleLoadMore = () => {
         setVisibleMessageCount(prev => prev + 30);
+    };
+
+    // Emoji picker handlers
+    const handleEmojiSelect = (emoji) => {
+        setNewMessage(prev => prev + emoji);
+        setShowEmojiPicker(false);
+    };
+
+    const toggleEmojiPicker = () => {
+        setShowEmojiPicker(prev => !prev);
+    };
+
+    // Image upload handlers
+    const handleImageUpload = async (imageFile) => {
+        console.log('=== IMAGE UPLOAD DEBUG START ===');
+        console.log('1. Image file:', {
+            name: imageFile?.name,
+            size: imageFile?.size,
+            type: imageFile?.type
+        });
+        console.log('2. Chat state:', {
+            isPrivateChatView,
+            selectedMatch: selectedMatch ? {
+                id: selectedMatch._id,
+                requestingTeam: selectedMatch.requestingTeam?.name,
+                receivingTeam: selectedMatch.receivingTeam?.name
+            } : null,
+            selectedPrivateChatUser: selectedPrivateChatUser ? {
+                id: selectedPrivateChatUser._id,
+                name: selectedPrivateChatUser.name,
+                matchIdContext: selectedPrivateChatUser.matchIdContext
+            } : null
+        });
+        console.log('3. User info:', {
+            userId: user?._id,
+            userName: user?.name
+        });
+        
+        setIsUploadingImage(true);
+        setUploadProgress(0);
+
+        try {
+            const isPrivate = !!isPrivateChatView; // Convert to boolean
+            const matchId = isPrivate ? selectedPrivateChatUser?.matchIdContext : selectedMatch?._id;
+            const recipientId = isPrivate ? selectedPrivateChatUser?._id : null;
+
+            console.log('Upload parameters:', {
+                isPrivate,
+                matchId,
+                recipientId,
+                imageFileName: imageFile.name,
+                imageSize: imageFile.size
+            });
+
+            if (!matchId) {
+                throw new Error(`No match selected. isPrivate: ${isPrivate}, selectedMatch: ${selectedMatch?._id}, selectedPrivateChatUser.matchIdContext: ${selectedPrivateChatUser?.matchIdContext}`);
+            }
+
+            // Simulate progress for better UX
+            const progressInterval = setInterval(() => {
+                setUploadProgress(prev => {
+                    if (prev < 90) return prev + 10;
+                    return prev;
+                });
+            }, 200);
+
+            console.log('4. Testing backend connectivity...');
+            try {
+                // Test if backend is reachable
+                const testResponse = await fetch('/api/auth/me', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    }
+                });
+                console.log('Backend connectivity test:', testResponse.status);
+            } catch (connectError) {
+                console.error('Backend connectivity test failed:', connectError);
+                throw new Error('Cannot connect to backend server. Please check if the server is running.');
+            }
+
+            console.log('5. Calling uploadChatImage API...');
+            console.log('6. API call parameters:', {
+                imageFile: imageFile.name,
+                matchId,
+                isPrivate,
+                recipientId
+            });
+            
+            const uploadedMessage = await uploadChatImage(imageFile, matchId, isPrivate, recipientId);
+            console.log('7. Upload successful:', uploadedMessage);
+            console.log('=== IMAGE UPLOAD DEBUG END ===');
+            
+            clearInterval(progressInterval);
+            setUploadProgress(100);
+            
+            // Trigger message refresh by calling onSendMessage with the new message
+            if (onSendMessage) {
+                onSendMessage(null, uploadedMessage);
+            }
+
+            setTimeout(() => {
+                setIsUploadingImage(false);
+                setUploadProgress(0);
+            }, 500);
+
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            console.error('Error details:', error.response?.data || error.message);
+            alert(`Failed to upload image: ${error.response?.data?.message || error.message}`);
+            setIsUploadingImage(false);
+            setUploadProgress(0);
+        }
     };
 
     // Determine chat context
@@ -84,7 +206,7 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
     const hiddenMessageCount = filteredMessages.length - visibleMessages.length;
 
     return (
-        <div className="flex flex-col h-full bg-white">
+        <div className="chat-messages-view bg-white">
             {/* Chat Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 bg-white flex-shrink-0">
                 <div className="flex items-center gap-3">
@@ -115,11 +237,10 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
                 )}
             </div>
 
-            {/* Messages Area */}
+            {/* Messages Area - Fixed Height Container */}
             <div 
                 ref={messagesContainerRef}
-                className="flex-1 overflow-y-auto px-4 py-3 bg-neutral-50 bg-opacity-30"
-                style={{ minHeight: 0 }}
+                className="chat-messages-container px-4 py-3 bg-neutral-50 bg-opacity-30 chat-scroll"
             >
                 {isGroupChatView || isPrivateChatView ? (
                     <>
@@ -137,39 +258,54 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
                         )}
 
                         {visibleMessages.length > 0 ? (
-                            <div className="space-y-2">
+                            <div className="message-spacing">
                                 {visibleMessages.map((msg, index) => {
-                                    const isMyMessage = msg.sender._id === user._id;
+                                    // Proper user ID comparison with multiple fallback methods
+                                    const isMyMessage = msg.sender._id === user._id || 
+                                                       msg.sender._id === user.id || 
+                                                       String(msg.sender._id) === String(user._id) ||
+                                                       String(msg.sender._id) === String(user.id);
 
                                     return (
                                         <div
                                             key={msg._id || index}
-                                            className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}
+                                            className={`flex mb-3 ${isMyMessage ? 'justify-end pr-2' : 'justify-start pl-2'}`}
                                         >
-                                            <div className={`flex items-end gap-2 max-w-[70%] ${isMyMessage ? 'flex-row-reverse' : 'flex-row'}`}>
-                                                {/* Avatar for others */}
-                                                {!isMyMessage && (
-                                                    <div className="w-8 h-8 rounded-full bg-gradient-sunset flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                                                        {msg.sender.name.charAt(0).toUpperCase()}
-                                                    </div>
-                                                )}
+                                            <div className={`flex items-end gap-2 max-w-[70%] ${isMyMessage ? 'flex-row-reverse' : 'flex-row ml-8'}`}>
+                                                {/* Avatar - show for all messages */}
+                                                <div className={`message-avatar ${isMyMessage ? 'bg-primary-rose' : 'message-avatar-gradient'}`}>
+                                                    {msg.sender.name.charAt(0).toUpperCase()}
+                                                </div>
 
                                                 {/* Message bubble */}
                                                 <div className="flex flex-col">
-                                                    {/* Sender name for others */}
-                                                    {!isMyMessage && (
-                                                        <div className="text-xs font-medium text-neutral-600 mb-1 px-3">
-                                                            {msg.sender.name}
-                                                        </div>
-                                                    )}
+                                                    {/* Sender name */}
+                                                    <div className={`text-xs font-medium text-neutral-600 mb-1 px-3 ${isMyMessage ? 'text-right' : 'text-left'}`}>
+                                                        {isMyMessage ? 'You' : msg.sender.name}
+                                                    </div>
 
                                                     {/* Message content */}
-                                                    <div className={`px-4 py-2 rounded-2xl ${
+                                                    <div className={`rounded-2xl shadow-sm ${
                                                         isMyMessage 
                                                             ? 'bg-primary-rose text-white rounded-br-md' 
                                                             : 'bg-white border border-neutral-200 text-neutral-800 rounded-bl-md'
-                                                    }`}>
-                                                        <p className="text-sm leading-relaxed">{msg.text}</p>
+                                                    } ${msg.messageType === 'image' ? 'p-1' : 'px-4 py-2'}`}>
+                                                        {msg.messageType === 'image' ? (
+                                                            <div className="relative">
+                                                                <img
+                                                                    src={msg.attachment?.url}
+                                                                    alt={msg.attachment?.filename || 'Shared image'}
+                                                                    className="max-w-full max-h-64 rounded-xl object-cover"
+                                                                    loading="lazy"
+                                                                />
+                                                                {/* Image overlay info */}
+                                                                <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                                                                    {msg.attachment?.filename}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-sm leading-relaxed">{msg.text}</p>
+                                                        )}
                                                     </div>
 
                                                     {/* Timestamp */}
@@ -220,25 +356,35 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
 
             {/* Message Input - Fixed at bottom */}
             {(isGroupChatView || isPrivateChatView) && (
-                <div className="border-t border-neutral-200 bg-white p-4 flex-shrink-0">
+                <div className="chat-input-area p-4">
                     <form onSubmit={handleFormSubmit} className="flex items-end gap-3">
                         {/* Quick Actions */}
-                        <div className="flex items-center gap-1">
-                            <button
-                                type="button"
-                                className="p-2 text-neutral-500 hover:text-primary-rose hover:bg-primary-rose hover:bg-opacity-10 rounded-lg transition-colors"
-                                title="Attach file"
-                            >
-                                <AttachmentIcon size={18} />
-                            </button>
+                        <div className="flex items-center gap-1 relative">
+                            {/* Image Upload Component */}
+                            <ImageUpload
+                                onUpload={handleImageUpload}
+                                isUploading={isUploadingImage}
+                                uploadProgress={uploadProgress}
+                            />
                             
+                            {/* Emoji Picker Button */}
                             <button
                                 type="button"
-                                className="p-2 text-neutral-500 hover:text-primary-rose hover:bg-primary-rose hover:bg-opacity-10 rounded-lg transition-colors"
+                                onClick={toggleEmojiPicker}
+                                className={`p-2 text-neutral-500 hover:text-primary-rose hover:bg-primary-rose hover:bg-opacity-10 rounded-lg transition-colors ${
+                                    showEmojiPicker ? 'text-primary-rose bg-primary-rose bg-opacity-10' : ''
+                                }`}
                                 title="Add emoji"
                             >
                                 <EmojiIcon size={18} />
                             </button>
+
+                            {/* Emoji Picker */}
+                            <EmojiPicker
+                                isOpen={showEmojiPicker}
+                                onClose={() => setShowEmojiPicker(false)}
+                                onEmojiSelect={handleEmojiSelect}
+                            />
                         </div>
 
                         {/* Message Input */}

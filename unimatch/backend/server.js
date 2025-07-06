@@ -160,29 +160,28 @@ io.on('connection', (socket) => {
         match: matchId,
         sender: socket.user._id,
         text: text,
+        messageType: 'text', // Default message type
         isPrivate: !!isPrivate, // Ensure boolean
         recipient: isPrivate ? recipientId : undefined,
     });
 
-    // Construct message object to emit (include recipient for private messages)
-    const messageToEmit = {
-        _id: messageToSave._id, // Assign a temporary ID or wait for save? Let's wait.
-        sender: { _id: socket.user._id, name: socket.user.name },
-        text: text,
-        timestamp: new Date(), // Use server timestamp
-        matchId: matchId,
-        isPrivate: !!isPrivate,
-        recipient: isPrivate ? { _id: recipientId } : undefined, // Include recipient ID if private
-        createdAt: new Date() // Add createdAt for consistency
-    };
-
-
-    // Save message to database
+    // Save message to database first
     try {
         const savedMessage = await messageToSave.save();
         console.log(`Message saved to DB (ID: ${savedMessage._id}) for match ${matchId}`);
-        messageToEmit._id = savedMessage._id; // Update with actual saved ID
-        messageToEmit.createdAt = savedMessage.createdAt; // Update with actual timestamp
+        
+        // Construct message object to emit (include recipient for private messages)
+        const messageToEmit = {
+            _id: savedMessage._id, // Use actual saved ID
+            sender: { _id: socket.user._id, name: socket.user.name },
+            text: text,
+            messageType: 'text',
+            timestamp: savedMessage.createdAt, // Use actual timestamp from DB
+            matchId: matchId,
+            isPrivate: !!isPrivate,
+            recipient: isPrivate ? { _id: recipientId } : undefined, // Include recipient ID if private
+            createdAt: savedMessage.createdAt // Add createdAt for consistency
+        };
 
         if (isPrivate) {
             // Send to recipient if online

@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { SparkIcon, GroupsIcon, CoupleIcon, UniversityIcon } from '../components/ui/SocialIcons';
+import { SparkIcon, GroupsIcon, CoupleIcon, UniversityIcon, DateIcon } from '../components/ui/SocialIcons';
 
 const MatchingPage = () => {
     const { user } = useAuth();
     const [myTeams, setMyTeams] = useState([]);
     const [selectedTeamId, setSelectedTeamId] = useState('');
     const [potentialMatches, setPotentialMatches] = useState([]);
-    const [matchRequests, setMatchRequests] = useState([]); // Combined incoming/outgoing/accepted/rejected
+    const [matchRequests, setMatchRequests] = useState([]);
     const [loadingMyTeams, setLoadingMyTeams] = useState(true);
     const [loadingPotentials, setLoadingPotentials] = useState(false);
     const [loadingRequests, setLoadingRequests] = useState(false);
@@ -21,11 +21,12 @@ const MatchingPage = () => {
             setLoadingMyTeams(true);
             setError('');
             try {
-                const res = await api.get('/teams'); // Gets teams for logged-in user
+                const res = await api.get('/teams/my-teams');
+                console.log("My teams response:", res.data);
                 setMyTeams(res.data);
                 if (res.data.length > 0) {
-                    // Auto-select the first team initially
                     setSelectedTeamId(res.data[0]._id);
+                    console.log("Auto-selected team:", res.data[0]._id, res.data[0].name);
                 }
             } catch (err) {
                 console.error("Error fetching user's teams:", err);
@@ -49,46 +50,44 @@ const MatchingPage = () => {
             setLoadingPotentials(true);
             setLoadingRequests(true);
             setError('');
+            console.log("Fetching matching data for team:", selectedTeamId);
+            
             try {
-                // Fetch potential teams
                 const potentialsRes = await api.get(`/teams/${selectedTeamId}/potential-matches`);
-                console.log("Potential matches response:", potentialsRes.data); // Log the response
+                console.log("Potential matches response:", potentialsRes.data);
                 setPotentialMatches(potentialsRes.data);
             } catch (err) {
                  console.error("Error fetching potential matches:", err);
+                 console.error("Error details:", err.response?.data);
                  setError(err.response?.data?.message || 'Failed to fetch potential matches.');
-                 setPotentialMatches([]); // Clear on error
+                 setPotentialMatches([]);
             } finally {
                  setLoadingPotentials(false);
             }
 
             try {
-                 // Fetch existing match requests (incoming/outgoing etc.)
                 const requestsRes = await api.get(`/matches/team/${selectedTeamId}`);
+                console.log("Match requests response:", requestsRes.data);
                 setMatchRequests(requestsRes.data);
             } catch (err) {
                  console.error("Error fetching match requests:", err);
+                 console.error("Error details:", err.response?.data);
                  setError(err.response?.data?.message || 'Failed to fetch match requests.');
-                 setMatchRequests([]); // Clear on error
+                 setMatchRequests([]);
             } finally {
                  setLoadingRequests(false);
             }
         };
 
         fetchMatchingData();
-    }, [selectedTeamId]); // Re-run when selected team changes
-
-    // --- Handler Functions ---
+    }, [selectedTeamId]);
 
     const handleSendRequest = async (receivingTeamId) => {
         setError('');
         try {
             await api.post('/matches', { requestingTeamId: selectedTeamId, receivingTeamId });
-            // Refresh data after sending request
-            // A simple way is to re-trigger the useEffect by changing selectedTeamId slightly
-            // A better way might be to update state directly or have a dedicated refresh function
-            setSelectedTeamId(''); // Clear selection
-            setTimeout(() => setSelectedTeamId(selectedTeamId), 50); // Re-select after delay
+            setSelectedTeamId('');
+            setTimeout(() => setSelectedTeamId(selectedTeamId), 50);
             alert('Match request sent!');
         } catch (err) {
             console.error("Error sending match request:", err);
@@ -100,7 +99,6 @@ const MatchingPage = () => {
          setError('');
         try {
             await api.put(`/matches/${matchId}/respond`, { response });
-             // Refresh data
             setSelectedTeamId('');
             setTimeout(() => setSelectedTeamId(selectedTeamId), 50);
             alert(`Match request ${response}!`);
@@ -115,7 +113,6 @@ const MatchingPage = () => {
          if (!window.confirm('Are you sure you want to cancel this pending request?')) return;
         try {
             await api.delete(`/matches/${matchId}/cancel`);
-             // Refresh data
             setSelectedTeamId('');
             setTimeout(() => setSelectedTeamId(selectedTeamId), 50);
             alert('Match request cancelled.');
@@ -124,9 +121,6 @@ const MatchingPage = () => {
             setError(err.response?.data?.message || 'Failed to cancel match request.');
         }
     };
-
-
-    // --- Render Logic ---
 
     if (loadingMyTeams) {
         return (
@@ -168,23 +162,19 @@ const MatchingPage = () => {
         );
     }
 
-    // Filter match requests for display - Added null checks for teams
+    // Filter match requests for display
     const incomingPending = matchRequests.filter(m =>
         m.status === 'pending' &&
-        m.receivingTeam?._id === selectedTeamId // Check if receivingTeam exists before accessing _id
+        m.receivingTeam?._id === selectedTeamId
     );
     const outgoingPending = matchRequests.filter(m =>
         m.status === 'pending' &&
-        m.requestingTeam?._id === selectedTeamId // Check if requestingTeam exists before accessing _id
+        m.requestingTeam?._id === selectedTeamId
     );
-    // Filter accepted matches more defensively, ensuring teams are populated
     const acceptedMatches = matchRequests.filter(m =>
-        m && // Check if match object exists
-        m.status === 'accepted' &&
-        m.requestingTeam && // Check if requestingTeam object exists
-        m.receivingTeam    // Check if receivingTeam object exists
+        m && m.status === 'accepted' &&
+        m.requestingTeam && m.receivingTeam
     );
-    // Add rejected/cancelled if needed
 
   return (
     <div className="bg-neutral-50 min-h-screen">
@@ -244,6 +234,7 @@ const MatchingPage = () => {
               <CoupleIcon className="mr-2" size={20} />
               Find New Matches
             </h2>
+            <p className="text-sm text-neutral-500 mt-1">Discover teams from other universities to connect with</p>
           </div>
           <div className="card-body">
             {loadingPotentials ? (
@@ -255,154 +246,282 @@ const MatchingPage = () => {
                 </div>
                 <p className="text-neutral-600">Loading potential matches...</p>
               </div>
-            ) : (
-              potentialMatches.filter(team => team._id !== selectedTeamId).length > 0 ? (
-                <div className="grid grid-2 gap-6">
+            ) : potentialMatches.filter(team => team._id !== selectedTeamId).length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {potentialMatches
                     .filter(team => team._id !== selectedTeamId)
                     .map(team => (
-                      <div key={team._id} className="card hover:shadow-xl transition-all duration-300">
-                        <div className="card-body">
+                      <div key={team._id} className="card hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                        <div className="card-body p-6">
                           <div className="flex items-center gap-3 mb-4">
                             <div className="w-12 h-12 bg-gradient-sunset rounded-full flex items-center justify-center text-white font-bold">
                               {team.name.charAt(0).toUpperCase()}
                             </div>
-                            <div>
-                              <h3 className="text-lg font-semibold text-neutral-800">{team.name}</h3>
-                              <span className="badge badge-primary">{team.university}</span>
+                            <div className="flex-1">
+                              <Link to={`/teams/${team._id}`} className="hover:underline">
+                                <h3 className="text-lg font-semibold text-neutral-800 hover:text-primary-rose transition-colors">
+                                  {team.name}
+                                </h3>
+                              </Link>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="badge badge-primary">{team.university}</span>
+                                {team.teamGender && (
+                                  <span className="badge badge-outline">{team.teamGender}</span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <p className="text-neutral-600 mb-4">{team.description || 'No description available'}</p>
+                          
+                          <p className="text-neutral-600 mb-4 line-clamp-2">
+                            {team.description || 'No description available'}
+                          </p>
+                          
                           <div className="mb-4">
-                            <h4 className="font-medium text-neutral-700 mb-2">Members:</h4>
+                            <h4 className="font-medium text-neutral-700 mb-2 flex items-center gap-1">
+                              <GroupsIcon size={14} />
+                              Members ({team.members?.length || 0}):
+                            </h4>
                             <div className="flex flex-wrap gap-2">
-                              {team.members.map(member => (
-                                <span key={member._id} className="badge badge-outline text-xs">{member.name}</span>
-                              ))}
+                              {team.members?.map(member => (
+                                <Link 
+                                  key={member._id} 
+                                  to={`/users/${member._id}`}
+                                  className="badge badge-outline text-xs hover:bg-primary-light transition-colors"
+                                >
+                                  {member.name}
+                                </Link>
+                              )) || <span className="text-sm text-neutral-400">No members listed</span>}
                             </div>
                           </div>
-                          <button 
-                            onClick={() => handleSendRequest(team._id)}
-                            className="btn btn-primary w-full"
-                          >
-                            <SparkIcon className="mr-2" size={16} />
-                            Send Match Request
-                          </button>
+
+                          {/* Team Details */}
+                          {(team.teamVibe?.length > 0 || team.topInterests?.length > 0) && (
+                            <div className="mb-4 space-y-2">
+                              {team.teamVibe?.length > 0 && (
+                                <div>
+                                  <h5 className="text-xs font-semibold text-neutral-400 uppercase mb-1">Vibe</h5>
+                                  <div className="flex flex-wrap gap-1">
+                                    {team.teamVibe.slice(0, 2).map(vibe => (
+                                      <span key={vibe} className="badge badge-secondary text-xs">{vibe}</span>
+                                    ))}
+                                    {team.teamVibe.length > 2 && (
+                                      <span className="badge badge-outline text-xs">+{team.teamVibe.length - 2}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              {team.topInterests?.length > 0 && (
+                                <div>
+                                  <h5 className="text-xs font-semibold text-neutral-400 uppercase mb-1">Interests</h5>
+                                  <div className="flex flex-wrap gap-1">
+                                    {team.topInterests.slice(0, 3).map(interest => (
+                                      <span key={interest} className="badge badge-primary text-xs">{interest}</span>
+                                    ))}
+                                    {team.topInterests.length > 3 && (
+                                      <span className="badge badge-outline text-xs">+{team.topInterests.length - 3}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          <div className="flex gap-2">
+                            <Link 
+                              to={`/teams/${team._id}`}
+                              className="btn btn-outline flex-1"
+                            >
+                              View Profile
+                            </Link>
+                            <button 
+                              onClick={() => handleSendRequest(team._id)}
+                              className="btn btn-primary flex-1"
+                            >
+                              <SparkIcon className="mr-2" size={16} />
+                              Send Request
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
                 </div>
               ) : (
-                <div className="text-center py-8">
+                <div className="text-center py-12">
                   <div className="flex justify-center mb-4">
-                    <div className="bg-neutral-200 rounded-full p-4">
-                      <CoupleIcon className="text-neutral-500" size={32} />
+                    <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center">
+                      <CoupleIcon className="text-neutral-400" size={32} />
                     </div>
                   </div>
-                  <p className="text-neutral-600">No potential new matches found for this team.</p>
-                  <p className="text-sm text-neutral-500 mt-2">Try checking back later or explore other teams!</p>
+                  <h3 className="text-lg font-semibold text-neutral-800 mb-2">No New Matches Found</h3>
+                  <p className="text-neutral-600 max-w-md mx-auto">
+                    No potential new matches found for this team. Try checking back later or explore other teams!
+                  </p>
                 </div>
               )
-            )}
+            }
           </div>
         </div>
 
-       <hr style={{ margin: '20px 0' }}/>
+        {/* Match Requests Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Incoming Requests */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold text-neutral-800 flex items-center">
+                <DateIcon className="mr-2" size={18} />
+                Incoming Requests
+              </h3>
+              <span className="badge badge-primary">{incomingPending.length}</span>
+            </div>
+            <div className="card-body">
+              {loadingRequests ? (
+                <div className="text-center py-4">
+                  <p className="text-neutral-600">Loading...</p>
+                </div>
+              ) : incomingPending.length > 0 ? (
+                <div className="space-y-4">
+                  {incomingPending.map(match => (
+                    <div key={match._id} className="bg-neutral-50 p-4 rounded-lg">
+                      <div className="mb-3">
+                        <Link to={`/teams/${match.requestingTeam._id}`} className="hover:underline">
+                          <h4 className="font-semibold text-neutral-800 hover:text-primary-rose">
+                            {match.requestingTeam.name}
+                          </h4>
+                        </Link>
+                        <p className="text-sm text-neutral-500">{match.requestingTeam.university}</p>
+                        <p className="text-sm text-neutral-600 mt-1">
+                          {match.requestingTeam.description || 'No description'}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleRespondRequest(match._id, 'accepted')}
+                          className="btn btn-success btn-sm flex-1"
+                        >
+                          Accept
+                        </button>
+                        <button 
+                          onClick={() => handleRespondRequest(match._id, 'rejected')}
+                          className="btn btn-error btn-sm flex-1"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-neutral-500">No incoming requests</p>
+                </div>
+              )}
+            </div>
+          </div>
 
-       {/* Match Requests Section */}
-       <h2>Match Requests & Status</h2>
-       {loadingRequests ? <p>Loading requests...</p> : (
-           <>
-               {/* Incoming Pending Requests */}
-               <h3>Incoming Requests (Pending)</h3>
-               {incomingPending.length > 0 ? (
-                   <ul>
-                       {incomingPending.map(match => (
-                           <li key={match._id} style={{ border: '1px solid #eee', padding: '10px', marginBottom: '10px' }}>
-                               Request from:{' '}
-                               {/* Link to the requesting team's profile */}
-                               <Link to={`/teams/${match.requestingTeam._id}`}>
-                                   <strong>{match.requestingTeam.name}</strong>
-                               </Link>
-                               {' '} {/* Add space */}
-                               ({match.requestingTeam.university})
-                               <p>{match.requestingTeam.description || 'No description'}</p>
-                               <p>Members:{' '}
-                                   {/* List members with links to their profiles */}
-                                   {match.requestingTeam.members.map((member, index) => (
-                                       <React.Fragment key={member._id}>
-                                           <Link to={`/users/${member._id}`}>{member.name}</Link>
-                                           {index < match.requestingTeam.members.length - 1 && ', '}
-                                       </React.Fragment>
-                                   ))}
-                               </p>
-                               <button onClick={() => handleRespondRequest(match._id, 'accepted')} style={{ marginLeft: '10px', background: 'lightgreen' }}>Accept</button>
-                               <button onClick={() => handleRespondRequest(match._id, 'rejected')} style={{ marginLeft: '5px', background: 'lightcoral' }}>Reject</button>
-                           </li>
-                       ))}
-                   </ul>
-               ) : <p>No incoming pending requests.</p>}
+          {/* Outgoing Requests */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold text-neutral-800 flex items-center">
+                <SparkIcon className="mr-2" size={18} />
+                Outgoing Requests
+              </h3>
+              <span className="badge badge-secondary">{outgoingPending.length}</span>
+            </div>
+            <div className="card-body">
+              {loadingRequests ? (
+                <div className="text-center py-4">
+                  <p className="text-neutral-600">Loading...</p>
+                </div>
+              ) : outgoingPending.length > 0 ? (
+                <div className="space-y-4">
+                  {outgoingPending.map(match => (
+                    <div key={match._id} className="bg-neutral-50 p-4 rounded-lg">
+                      <div className="mb-3">
+                        <Link to={`/teams/${match.receivingTeam._id}`} className="hover:underline">
+                          <h4 className="font-semibold text-neutral-800 hover:text-primary-rose">
+                            {match.receivingTeam.name}
+                          </h4>
+                        </Link>
+                        <p className="text-sm text-neutral-500">{match.receivingTeam.university}</p>
+                      </div>
+                      <button 
+                        onClick={() => handleCancelRequest(match._id)}
+                        className="btn btn-outline btn-sm w-full"
+                      >
+                        Cancel Request
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-neutral-500">No outgoing requests</p>
+                </div>
+              )}
+            </div>
+          </div>
 
-                {/* Outgoing Pending Requests */}
-               <h3>Outgoing Requests (Pending)</h3>
-               {outgoingPending.length > 0 ? (
-                   <ul>
-                       {outgoingPending.map(match => (
-                           <li key={match._id}>
-                               Request to: <strong>{match.receivingTeam.name}</strong>
-                               <button onClick={() => handleCancelRequest(match._id)} style={{ marginLeft: '10px', background: 'orange' }}>Cancel Request</button>
-                           </li>
-                       ))}
-                   </ul>
-               ) : <p>No outgoing pending requests.</p>}
+          {/* Accepted Matches */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold text-neutral-800 flex items-center">
+                <CoupleIcon className="mr-2" size={18} />
+                Accepted Matches
+              </h3>
+              <span className="badge badge-success">{acceptedMatches.length}</span>
+            </div>
+            <div className="card-body">
+              {loadingRequests ? (
+                <div className="text-center py-4">
+                  <p className="text-neutral-600">Loading...</p>
+                </div>
+              ) : acceptedMatches.length > 0 ? (
+                <div className="space-y-4">
+                  {acceptedMatches.map(match => {
+                    let otherTeamName = 'Unknown Team';
+                    let otherTeamId = null;
+                    
+                    if (match.requestingTeam && match.receivingTeam) {
+                      if (match.requestingTeam._id === selectedTeamId) {
+                        otherTeamName = match.receivingTeam.name;
+                        otherTeamId = match.receivingTeam._id;
+                      } else {
+                        otherTeamName = match.requestingTeam.name;
+                        otherTeamId = match.requestingTeam._id;
+                      }
+                    }
 
-                {/* Accepted Matches */}
-               <h3>Accepted Matches</h3>
-                {acceptedMatches.length > 0 ? (
-                   <ul>
-                       {acceptedMatches.map(match => {
-                           // Determine the other team safely with explicit null checks
-                           let otherTeamName = 'Unknown/Deleted Team';
-                           // Check if BOTH team objects exist after population
-                           if (match.requestingTeam && match.receivingTeam) {
-                               if (match.requestingTeam._id === selectedTeamId) {
-                                   otherTeamName = match.receivingTeam.name;
-                               } else {
-                                   otherTeamName = match.requestingTeam.name;
-                               }
-                           } else {
-                               // Log if one or both teams are missing (likely deleted)
-                               console.warn(`Match ${match._id} references a deleted team.`);
-                           }
-
-                           // Determine the other team's ID for linking
-                           let otherTeamId = null;
-                           if (match.requestingTeam && match.receivingTeam) {
-                               otherTeamId = match.requestingTeam._id === selectedTeamId
-                                   ? match.receivingTeam._id
-                                   : match.requestingTeam._id;
-                           }
-
-                           return (
-                               <li key={match._id}>
-                                   Matched with:{' '}
-                                   {otherTeamId ? (
-                                       <Link to={`/teams/${otherTeamId}`}>
-                                           <strong>{otherTeamName}</strong>
-                                       </Link>
-                                   ) : (
-                                       <strong>{otherTeamName}</strong>
-                                   )}
-                                   {' '} {/* Add space */}
-                                   {/* Add link to chat later */}
-                                   {/* Example: <Link to={`/chat/${match._id}`}>Chat</Link> */}
-                               </li>
-                           );
-                       })}
-                   </ul>
-               ) : <p>No accepted matches yet.</p>}
-           </>
-       )}
+                    return (
+                      <div key={match._id} className="bg-green-50 p-4 rounded-lg">
+                        <div className="mb-3">
+                          {otherTeamId ? (
+                            <Link to={`/teams/${otherTeamId}`} className="hover:underline">
+                              <h4 className="font-semibold text-green-800 hover:text-green-600">
+                                {otherTeamName}
+                              </h4>
+                            </Link>
+                          ) : (
+                            <h4 className="font-semibold text-green-800">{otherTeamName}</h4>
+                          )}
+                        </div>
+                        <Link 
+                          to={`/chat`}
+                          className="btn btn-primary btn-sm w-full"
+                        >
+                          Start Chatting
+                        </Link>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-neutral-500">No accepted matches yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

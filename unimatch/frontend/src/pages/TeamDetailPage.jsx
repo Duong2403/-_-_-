@@ -1,304 +1,258 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import useDebounce from '../hooks/useDebounce'; // Assuming a debounce hook exists
+import AuthContext from '../context/AuthContext';
+import AddMemberModal from '../components/AddMemberModal';
+import { 
+    PlusIcon,
+    ArrowRightIcon,
+    CheckIcon,
+    XIcon
+} from '../components/ui/Icons';
+import { 
+    GroupsIcon,
+    CoupleIcon,
+    DateIcon,
+    SparkIcon,
+    UniversityIcon
+} from '../components/ui/SocialIcons';
 
-// Component to search and add members
-const MemberSearch = ({ team, onMemberAdded }) => {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState([]);
-    const [loadingSearch, setLoadingSearch] = useState(false);
-    const [searchError, setSearchError] = useState('');
-    const [invitingMemberId, setInvitingMemberId] = useState(null); // Track which member is being invited
-
-    const debouncedSearchQuery = useDebounce(searchQuery, 500); // Debounce search input by 500ms
-
-    // Effect to search users when debounced query changes
-    useEffect(() => {
-        const searchUsers = async () => {
-            if (!debouncedSearchQuery || !team?.university) {
-                setSearchResults([]);
-                setLoadingSearch(false);
-                return;
-            }
-            setLoadingSearch(true);
-            setSearchError('');
-            try {
-                const res = await api.get(`/users/search`, {
-                    params: { q: debouncedSearchQuery, university: team.university }
-                });
-                // Filter out users who are already members
-                const currentMemberIds = team.members.map(m => m._id);
-                const potentialNewMembers = res.data.filter(user => !currentMemberIds.includes(user._id));
-                setSearchResults(potentialNewMembers);
-            } catch (err) {
-                console.error("Error searching users:", err);
-                setSearchError(err.response?.data?.message || 'Failed to search users.');
-                setSearchResults([]);
-            } finally {
-                setLoadingSearch(false);
-            }
-        };
-
-        searchUsers();
-    }, [debouncedSearchQuery, team?.university, team?.members]); // Depend on debounced query and team info
-
-    const handleAddMember = async (userIdToAdd) => {
-        setAddingMemberId(userIdToAdd); // Set loading state for this specific button
-        setSearchError('');
-        try {
-            const res = await api.put(`/teams/${team._id}/members`, { userIdToAdd });
-            onMemberAdded(res.data); // Notify parent component of the updated team
-            setSearchQuery(''); // Clear search after adding
-            setSearchResults([]); // Clear results
-        } catch (err) {
-             console.error("Error adding member:", err);
-             setSearchError(err.response?.data?.message || 'Failed to add member.');
-        } finally {
-             setAddingMemberId(null); // Clear loading state for button
-        }
-    };
-
-    // Renamed from handleAddMember to handleInviteMember
-    const handleInviteMember = async (inviteeId) => {
-        setInvitingMemberId(inviteeId); // Set loading state for this specific button
-        setSearchError('');
-        try {
-            // Call the new invite route
-            const res = await api.put(`/teams/${team._id}/invite`, { inviteeId });
-            // Don't need to call onMemberAdded as member isn't added yet
-            alert(res.data.message || 'Invitation sent!'); // Show success message from backend
-            setSearchQuery(''); // Clear search after inviting
-            setSearchResults([]); // Clear results
-        } catch (err) {
-             console.error("Error inviting member:", err);
-             setSearchError(err.response?.data?.message || 'Failed to send invitation.');
-        } finally {
-             setInvitingMemberId(null); // Clear loading state for button
-        }
-    };
-
-
-    return (
-        <div>
-            <h4>Invite New Member</h4> {/* Changed heading */}
-            <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ marginBottom: '10px', width: '300px' }}
-            />
-            {loadingSearch && <p>Searching...</p>}
-            {searchError && <p style={{ color: 'red' }}>{searchError}</p>}
-            {searchResults.length > 0 && (
-                <ul style={{ listStyle: 'none', padding: 0, border: '1px solid #eee', maxHeight: '150px', overflowY: 'auto' }}>
-                    {searchResults.map(user => (
-                        <li key={user._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px', borderBottom: '1px solid #eee' }}>
-                            <span>{user.name} ({user.email})</span>
-                            <button
-                                onClick={() => handleInviteMember(user._id)} // Call invite handler
-                                disabled={invitingMemberId === user._id} // Check inviting state
-                                style={{ padding: '3px 8px', fontSize: '0.8em' }}
-                            >
-                                {invitingMemberId === user._id ? 'Inviting...' : 'Invite'} {/* Change button text */}
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            )}
-             {!loadingSearch && debouncedSearchQuery && searchResults.length === 0 && <p>No matching users found (or they are already members).</p>}
+// Reusable component for displaying profile information in sections
+const DetailSection = ({ icon: Icon, title, children }) => (
+    <div className="bg-white p-6 rounded-lg shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+            <Icon className="text-primary-rose" size={24} />
+            <h3 className="text-xl font-semibold text-neutral-800">{title}</h3>
         </div>
-    );
-};
+        {children}
+    </div>
+);
+
+// Reusable tag component
+const InfoTag = ({ children, className = '' }) => (
+    <span className={`inline-block bg-primary-light text-primary-dark font-medium px-3 py-1 rounded-full text-sm ${className}`}>
+        {children}
+    </span>
+);
 
 
 const TeamDetailPage = () => {
-    const { teamId } = useParams(); // Get teamId from URL parameter
-    const { user } = useAuth();
+    const { teamId } = useParams(); // Fixed: extract 'teamId' instead of 'id'
+    const { user } = useContext(AuthContext);
     const [team, setTeam] = useState(null);
-    const [reviews, setReviews] = useState([]); // State for reviews
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [reviewsLoading, setReviewsLoading] = useState(true); // Separate loading for reviews
-    const [reviewsError, setReviewsError] = useState(''); // Separate error for reviews
+    const [isJoining, setIsJoining] = useState(false);
+    const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
 
-    const fetchTeamDetails = async () => {
-        setLoading(true);
-        setError('');
+    useEffect(() => {
+        const fetchTeam = async () => {
+            if (!teamId) {
+                console.error('Team ID is undefined');
+                setError('Invalid team ID');
+                setLoading(false);
+                return;
+            }
+            
+            console.log('Fetching team with ID:', teamId); // Debug log
+            try {
+                const res = await api.get(`/teams/${teamId}`); // Fixed: use teamId instead of id
+                console.log('Team data received:', res.data); // Debug log
+                setTeam(res.data);
+            } catch (err) {
+                console.error('Error fetching team:', err);
+                console.error('Error details:', err.response?.data); // More detailed error logging
+                setError(err.response?.data?.message || 'Failed to fetch team details.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchTeam();
+    }, [teamId]); // Fixed: dependency array uses teamId
+
+    const handleJoinTeam = async () => {
+        setIsJoining(true);
+        try {
+            const res = await api.post(`/teams/${teamId}/join`); // Fixed: use teamId instead of id
+            setTeam(res.data); // Update team state with new member list
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.message || 'Failed to join team.');
+        } finally {
+            setIsJoining(false);
+        }
+    };
+
+    const handleMemberAdded = async () => {
+        // Refresh team data when a new member is added
         try {
             const res = await api.get(`/teams/${teamId}`);
             setTeam(res.data);
         } catch (err) {
-            console.error("Error fetching team details:", err);
-            setError(err.response?.data?.message || 'Failed to fetch team details.');
-        } finally {
-            setLoading(false);
+            console.error('Error refreshing team data:', err);
         }
     };
 
-     const fetchTeamReviews = async () => {
-        if (!teamId) return;
-        setReviewsLoading(true);
-        setReviewsError('');
-        try {
-            const res = await api.get(`/reviews/team/${teamId}`);
-            setReviews(res.data);
-        } catch (err) {
-            console.error("Error fetching team reviews:", err);
-            setReviewsError(err.response?.data?.message || 'Failed to fetch reviews.');
-        } finally {
-            setReviewsLoading(false);
-        }
-    };
+    const isUserMember = team?.members.some(member => member._id === user.id);
+    const isUserCreator = team?.createdBy._id === user.id;
 
-    useEffect(() => {
-        fetchTeamDetails();
-        fetchTeamReviews(); // Fetch reviews when component mounts or teamId changes
-    }, [teamId]); // Refetch if teamId changes
-
-    const handleMemberAdded = (updatedTeamData) => {
-        // Callback function for when a member is successfully added via MemberSearch
-        setTeam(updatedTeamData); // Update the team state
-    };
-
-    if (loading) return <p>Loading team details...</p>;
-    if (error) return <p style={{ color: 'red' }}>Error: {error}</p>;
-    if (!team) return <p>Team not found.</p>;
-
-    // Check if the current user is the creator for displaying management options
-    const isCreator = user && team.createdBy && user._id === team.createdBy._id;
-
-    // --- Action Handlers --- Moved Before Return ---
-
-    const handleLeaveTeam = async () => {
-        if (!window.confirm('Are you sure you want to leave this team?')) return;
-        setLoading(true); // Use the main loading state for page-level actions
-        setError('');
-        try {
-            await api.delete(`/teams/${teamId}/leave`);
-            alert('You have left the team.');
-            // Navigate back to the main teams page after leaving
-            // Need to import useNavigate
-            // const navigate = useNavigate(); // Add this hook at the top
-            // navigate('/teams');
-            window.location.href = '/teams'; // Simple redirect for now
-        } catch (err) {
-             console.error("Error leaving team:", err);
-             setError(err.response?.data?.message || 'Failed to leave team.');
-             setLoading(false); // Only stop loading on error here
-        }
-        // No finally block needed if redirecting on success
-    };
-
-     const handleDeleteTeam = async () => {
-        if (!window.confirm('Are you sure you want to permanently delete this team? This cannot be undone.')) return;
-        setLoading(true); // Use the main loading state
-        setError('');
-        try {
-            await api.delete(`/teams/${teamId}`);
-            alert('Team deleted successfully.');
-            // Navigate back to the main teams page after deleting
-            window.location.href = '/teams'; // Simple redirect for now
-        } catch (err) {
-             console.error("Error deleting team:", err);
-             setError(err.response?.data?.message || 'Failed to delete team.');
-             setLoading(false);
-        }
-    };
-
-    // --- Render Logic ---
+    if (loading) return <div className="text-center p-10">Loading team details...</div>;
+    if (error) return <div className="text-center p-10 text-error">{error}</div>;
+    if (!team) return <div className="text-center p-10">Team not found.</div>;
 
     return (
-        <div>
-            <h2>Team: {team.name}</h2>
-            <p><strong>University:</strong> {team.university}</p>
-            <p><strong>Description:</strong> {team.description || 'N/A'}</p>
-            <p><strong>Purpose:</strong> {team.purpose}</p>
-            <p><strong>Interests:</strong> {team.interests?.join(', ') || 'N/A'}</p>
-            <p><strong>Meeting Preference:</strong> {team.meetingPreference}</p>
-            <p><strong>Status:</strong> {team.status}</p>
-            <p><strong>Created By:</strong> {team.createdBy?.name || 'Unknown'}</p>
+        <div className="bg-neutral-50 min-h-screen">
+            <div className="container py-10">
 
-            <h3>Members ({team.members.length})</h3>
-            <ul>
-                {team.members.map(member => (
-                    <li key={member._id}>
-                        <Link to={`/users/${member._id}`}>{member.name}</Link> ({member.email})
-                        {/* TODO: Add remove member button if creator/self */}
-                    </li>
-                ))}
-            </ul>
-
-            <hr style={{ margin: '20px 0' }} />
-
-            {/* Only show add member functionality to the creator for now */}
-            {isCreator ? (
-                // Pass team prop, onMemberAdded is no longer needed here
-                <MemberSearch team={team} />
-            ) : (
-                <p>Only the team creator can invite new members.</p> // Updated text
-            )}
-
-            {/* --- Management Buttons --- */}
-            <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
-                {/* TODO: Add Edit Team Details form (if creator) */}
-
-                {/* Leave Team Button (if member but not creator OR creator with >1 members) */}
-                {user && team.members.some(m => m._id === user._id) && (!isCreator || team.members.length > 1) && (
-                     <button
-                        onClick={handleLeaveTeam}
-                        style={{ background: '#ffc107', color: '#333', marginRight: '10px' }}
-                        disabled={loading} // Disable while any action is loading
-                     >
-                         Leave Team
-                     </button>
-                )}
-
-                {/* Delete Team Button (if creator) */}
-                {isCreator && (
-                    <button
-                        onClick={handleDeleteTeam}
-                        style={{ background: '#dc3545', color: 'white' }}
-                        disabled={loading} // Disable while any action is loading
-                    >
-                        Delete Team
+                {/* Header Section */}
+                <div className="relative bg-white p-8 rounded-xl shadow-md mb-8 overflow-hidden">
+                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-gradient-love rounded-full opacity-20"></div>
+                    <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-gradient-secondary rounded-full opacity-20"></div>
+                    
+                    <div className="relative z-10">
+                         <div className="flex justify-between items-start flex-wrap gap-4">
+                            <div>
+                                <Link to="/teams" className="flex items-center gap-2 text-primary-rose hover:underline mb-4">
+                                    <ArrowRightIcon size={16} style={{transform: 'rotate(180deg)'}} />
+                                    Back to All Groups
+                                </Link>
+                                <h1 className="text-4xl font-bold text-neutral-800 font-family-heading">{team.name}</h1>
+                                <p className="text-neutral-600 mt-2 text-lg">{team.description}</p>
+                                <div className="mt-4 flex items-center gap-4">
+                                    <InfoTag><UniversityIcon className="inline mr-1.5" size={14} />{team.university}</InfoTag>
+                                    <InfoTag><GroupsIcon className="inline mr-1.5" size={14} />{team.teamComposition}</InfoTag>
+                                    {team.teamGender && (
+                                        <InfoTag>
+                                            <CoupleIcon className="inline mr-1.5" size={14} />
+                                            {team.teamGender} Team
+                                        </InfoTag>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {isUserCreator ? (
+                                    <>
+                                        <button 
+                                            onClick={() => setIsAddMemberModalOpen(true)}
+                                            className="btn btn-primary"
+                                        >
+                                            <PlusIcon size={16} className="mr-2" /> Add Member
+                                        </button>
+                                        <button className="btn btn-outline">
+                                            <PlusIcon size={16} className="mr-2" /> Edit Group
+                                        </button>
+                                    </>
+                                ) : isUserMember ? (
+                                    <span className="btn btn-primary-light cursor-default">
+                                        <CheckIcon size={16} className="mr-2" /> You are a member
+                                    </span>
+                                ) : (
+                                    <button onClick={handleJoinTeam} disabled={isJoining} className="btn btn-primary">
+                                        {isJoining ? 'Joining...' : <><PlusIcon size={16} className="mr-2" /> Join Group</>}
                     </button>
                 )}
             </div>
+                        </div>
+                    </div>
+                </div>
 
-            {/* --- Reviews Section --- */}
-            <div style={{ marginTop: '30px', borderTop: '1px solid #ccc', paddingTop: '20px' }}>
-                <h3>Reviews ({reviews.length})</h3>
-                {reviewsLoading ? (
-                    <p>Loading reviews...</p>
-                ) : reviewsError ? (
-                    <p style={{ color: 'red' }}>Error loading reviews: {reviewsError}</p>
-                ) : reviews.length > 0 ? (
-                    <ul>
-                        {reviews.map(review => (
-                            <li key={review._id} style={{ marginBottom: '15px', borderBottom: '1px dashed #eee', paddingBottom: '10px' }}>
-                                <div><strong>Rating: {'★'.repeat(review.teamRating)}{'☆'.repeat(5 - review.teamRating)}</strong></div>
-                                {review.comment && <p style={{ fontStyle: 'italic', margin: '5px 0' }}>"{review.comment}"</p>}
-                                <div style={{ fontSize: '0.9em', color: 'gray' }}>
-                                    By: {review.reviewer?.name || 'Anonymous'} from Team {review.reviewingTeam?.name || 'Unknown'}
-                                    {' '} on {new Date(review.createdAt).toLocaleDateString()}
+                {/* Main Content Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    {/* Left Column: Details */}
+                    <div className="md:col-span-2 space-y-8">
+                        <DetailSection icon={GroupsIcon} title="Our Group's Vibe">
+                           <div className="flex flex-wrap gap-3">
+                                {team.teamVibe?.length > 0 ? team.teamVibe.map(vibe => (
+                                    <InfoTag key={vibe}>{vibe}</InfoTag>
+                                )) : <p className="text-neutral-500">Vibe not specified.</p>}
+                           </div>
+                        </DetailSection>
+
+                        <DetailSection icon={DateIcon} title="Top Interests">
+                            <div className="flex flex-wrap gap-3">
+                                {team.topInterests?.length > 0 ? team.topInterests.map(interest => (
+                                    <InfoTag key={interest}>{interest}</InfoTag>
+                                )) : <p className="text-neutral-500">No interests listed.</p>}
+                            </div>
+                        </DetailSection>
+
+                         <DetailSection icon={CoupleIcon} title="What We're Looking For">
+                            <div className="space-y-4">
+                                <div>
+                                    <h4 className="font-semibold text-neutral-700 mb-2">Purpose</h4>
+                                     <div className="flex flex-wrap gap-3">
+                                        {team.meetingPurpose?.length > 0 ? team.meetingPurpose.map(purpose => (
+                                            <InfoTag key={purpose}>{purpose}</InfoTag>
+                                        )) : <p className="text-neutral-500">Meeting purpose not specified.</p>}
+                                    </div>
                                 </div>
-                                {/* Optionally display member ratings if needed */}
-                                {/* {review.memberRatings.length > 0 && ( ... display logic ... )} */}
+                                <div>
+                                    <h4 className="font-semibold text-neutral-700 mb-2">Ideal Team Vibe</h4>
+                                     <div className="flex flex-wrap gap-3">
+                                        {team.targetTeamVibe?.length > 0 ? team.targetTeamVibe.map(vibe => (
+                                            <InfoTag key={vibe}>{vibe}</InfoTag>
+                                        )) : <p className="text-neutral-500">No preference.</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        </DetailSection>
+                        
+                        <DetailSection icon={DateIcon} title="Logistics">
+                             <div className="space-y-4">
+                                <div>
+                                    <h4 className="font-semibold text-neutral-700 mb-2">Availability</h4>
+                                     <div className="flex flex-wrap gap-3">
+                                        {team.availability?.length > 0 ? team.availability.map(avail => (
+                                            <InfoTag key={avail}>{avail}</InfoTag>
+                                        )) : <p className="text-neutral-500">Availability not specified.</p>}
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-neutral-700 mb-2">Preferred Location</h4>
+                                    <InfoTag>{team.preferredLocation || 'Not specified'}</InfoTag>
+                                </div>
+                            </div>
+                        </DetailSection>
+                    </div>
+
+                    {/* Right Column: Members */}
+                    <div className="space-y-8">
+                        <DetailSection icon={UniversityIcon} title="Group Members">
+                            <ul className="space-y-4">
+                                {team.members.map(member => (
+                                    <li key={member._id} className="flex items-center justify-between bg-neutral-50 p-3 rounded-lg">
+                                        <div className="flex items-center gap-3">
+                                            <GroupsIcon size={32} className="text-neutral-400" />
+                                            <div>
+                                                <p className="font-semibold text-neutral-800">{member.name}</p>
+                                                <p className="text-sm text-neutral-500">{member.email}</p>
+                                            </div>
+                                        </div>
+                                        {team.createdBy._id === member._id && <span className="badge badge-primary-light">Creator</span>}
                             </li>
                         ))}
                     </ul>
-                ) : (
-                    <p>No reviews yet for this team.</p>
+                        </DetailSection>
+                        
+                        {isUserMember && (
+                             <DetailSection icon={CoupleIcon} title="Group Chat">
+                                <p className="text-neutral-600 mb-4">You can chat with your group members here.</p>
+                                <Link to={`/chat/team/${team._id}`} className="btn btn-secondary w-full">
+                                    Go to Group Chat
+                                </Link>
+                             </DetailSection>
                 )}
             </div>
-
-
-            <div style={{ marginTop: '20px' }}>
-                <Link to="/teams">Back to My Teams</Link>
+                </div>
             </div>
+            
+            {/* Add Member Modal */}
+            <AddMemberModal 
+                isOpen={isAddMemberModalOpen}
+                onClose={() => setIsAddMemberModalOpen(false)}
+                team={team}
+                onMemberAdded={handleMemberAdded}
+            />
         </div>
     );
 };

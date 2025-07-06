@@ -12,10 +12,37 @@ const MessageSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
+  messageType: { // Type of message: 'text', 'image', 'emoji'
+    type: String,
+    enum: ['text', 'image', 'emoji'],
+    default: 'text',
+  },
   text: { // The content of the message
     type: String,
-    required: [true, 'Message text cannot be empty.'],
+    required: function() { 
+      return this.messageType === 'text' || this.messageType === 'emoji'; 
+    },
     trim: true,
+  },
+  attachment: { // For image messages
+    url: {
+      type: String,
+      required: function() { return this.messageType === 'image'; }
+    },
+    publicId: {
+      type: String,
+      required: function() { return this.messageType === 'image'; }
+    },
+    filename: {
+      type: String,
+      required: function() { return this.messageType === 'image'; }
+    },
+    size: {
+      type: Number,
+      required: function() { return this.messageType === 'image'; }
+    },
+    width: Number,
+    height: Number,
   },
   isPrivate: { // Flag for private messages
     type: Boolean,

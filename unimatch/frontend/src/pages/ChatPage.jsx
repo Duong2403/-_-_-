@@ -49,10 +49,14 @@ const ChatPage = () => {
             if (!user) return;
             setError('');
             try {
-                const teamsRes = await api.get('/teams');
+                const teamsRes = await api.get('/teams/my-teams');
                 setMyTeams(teamsRes.data);
                 const userTeamIds = teamsRes.data.map(t => t._id);
+                console.log('User teams fetched:', teamsRes.data);
+                console.log('User team IDs:', userTeamIds);
+                
                 if (userTeamIds.length === 0) {
+                    console.log('No teams found for user, setting empty matches');
                     setAcceptedMatches([]);
                     return;
                 }
@@ -66,6 +70,11 @@ const ChatPage = () => {
                             allMatches = allMatches.concat(matchRes.data);
                          } catch (matchErr) {
                              console.error(`Error fetching matches for team ${teamId}:`, matchErr);
+                             console.error('Match error details:', {
+                                 status: matchErr.response?.status,
+                                 message: matchErr.response?.data?.message,
+                                 teamId: teamId
+                             });
                          }
                     }
                 }
@@ -83,11 +92,12 @@ const ChatPage = () => {
                 }, []);
 
                 setAcceptedMatches(uniqueAccepted);
-                if (uniqueAccepted.length > 0 && !selectedMatch) {
-                    setSelectedMatch(uniqueAccepted[0]);
-                } else if (uniqueAccepted.length === 0) {
-                    setSelectedMatch(null);
-                }
+                // Do not automatically select a match here to prevent re-render loops
+                // if (uniqueAccepted.length > 0 && !selectedMatch) {
+                //     setSelectedMatch(uniqueAccepted[0]);
+                // } else if (uniqueAccepted.length === 0) {
+                //     setSelectedMatch(null);
+                // }
 
             } catch (err) {
                 console.error("Error fetching accepted matches/teams:", err);
@@ -101,7 +111,14 @@ const ChatPage = () => {
     useEffect(() => {
         if (!token) return;
 
-        const newSocket = io('http://localhost:5000', { auth: { token } });
+        console.log('Creating new socket connection...');
+        const newSocket = io('http://localhost:5000', { 
+            auth: { token },
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5,
+            timeout: 20000
+        });
         setSocket(newSocket);
 
         newSocket.on('connect', () => console.log('Socket connected:', newSocket.id));
@@ -190,9 +207,16 @@ const ChatPage = () => {
         // Listener for meeting updates (accepted response, cancelled, etc.)
         newSocket.on('meetingUpdated', (updatedMeeting) => {
             console.log('Meeting update received:', updatedMeeting);
+            console.log('Current selected match ID:', selectedMatchIdRef.current);
+            console.log('Updated meeting match ID:', updatedMeeting.match?._id);
+            
             if (selectedMatchIdRef.current && updatedMeeting.match?._id === selectedMatchIdRef.current) {
+                console.log('Meeting update is for current match, updating proposals');
                 setMeetingProposals(prev => {
+                    console.log('Previous meeting proposals:', prev);
                     const index = prev.findIndex(m => m._id === updatedMeeting._id);
+                    console.log('Found meeting at index:', index);
+                    
                     if (index !== -1) {
                         // If meeting is cancelled, remove it from the list
                         if (updatedMeeting.status === 'cancelled') {
@@ -200,18 +224,23 @@ const ChatPage = () => {
                             return prev.filter(m => m._id !== updatedMeeting._id);
                         } else {
                             // Replace the old meeting with the updated one
+                            console.log('Replacing meeting at index', index, 'with updated meeting');
                             const newProposals = [...prev];
                             newProposals[index] = updatedMeeting;
+                            console.log('New meeting proposals:', newProposals);
                             return newProposals;
                         }
                     } else {
                         // If not found and not cancelled, add it
                         if (updatedMeeting.status !== 'cancelled') {
+                            console.log('Adding new meeting to proposals');
                             return [...prev, updatedMeeting];
                         }
                         return prev;
                     }
                 });
+            } else {
+                console.log('Meeting update is not for current match, ignoring');
             }
         });
 
@@ -230,81 +259,66 @@ const ChatPage = () => {
 
     // --- Joining/Leaving Rooms, Fetching History & Meetings ---
     useEffect(() => {
+        if (!socket) return;
+
         // Update refs for use in socket listeners
         selectedMatchIdRef.current = selectedMatch?._id || null;
         selectedPrivateChatUserIdRef.current = selectedPrivateChatUser?._id || null;
 
-        // Determine if we are viewing a group chat or a private chat
-        const isGroupChatView = selectedMatch && !selectedPrivateChatUser;
-        const isPrivateChatView = selectedPrivateChatUser; // Private chat takes precedence if selected
+        const isGroupChatView = selectedMatch?._id;
+        const isPrivateChatView = selectedPrivateChatUser?._id;
 
-        // --- Group Chat Logic ---
-        if (socket && isGroupChatView) {
-            const matchId = selectedMatch._id;
+        const fetchAndJoinGroup = async (matchId) => {
             console.log(`Joining group room: ${matchId}`);
-            socket.emit('joinRoom', matchId); // Join the group room
+            socket.emit('joinRoom', matchId);
 
-            const fetchGroupChatData = async () => {
-                setError('');
-                setMessages([]); // Clear previous messages
-                setMeetingProposals([]); // Clear previous proposals
-                try {
-                    // Fetch group messages and meeting proposals for the match
-                    const [historyRes, meetingsRes] = await Promise.all([
-                        api.get(`/messages/${matchId}`), // Fetches only group messages by default now? Need to check API
-                        api.get(`/meetings/match/${matchId}`)
-                    ]);
-                    // Filter messages on client-side just in case API returns mixed? Or update API.
-                    // Assuming API GET /messages/:matchId returns ONLY group messages for now.
-                    setMessages(historyRes.data.filter(m => !m.isPrivate));
-                    // Filter out cancelled meetings to prevent interaction errors
-                    setMeetingProposals(meetingsRes.data.filter(m => m.status !== 'cancelled'));
-                } catch (err) {
-                    console.error("Error fetching group chat data:", err);
-                    setError(err.response?.data?.message || 'Failed to fetch group chat data.');
-                    setMessages([]);
-                    setMeetingProposals([]);
-                }
-            };
-            fetchGroupChatData();
+            setError('');
+            setMessages([]);
+            setMeetingProposals([]);
+            try {
+                const [historyRes, meetingsRes] = await Promise.all([
+                    api.get(`/messages/${matchId}`),
+                    api.get(`/meetings/match/${matchId}`)
+                ]);
+                setMessages(historyRes.data.filter(m => !m.isPrivate));
+                setMeetingProposals(meetingsRes.data.filter(m => m.status !== 'cancelled'));
+            } catch (err) {
+                console.error("Error fetching group chat data:", err);
+                setError(err.response?.data?.message || 'Failed to fetch group chat data.');
+            }
+        };
 
-            // Cleanup function for group chat
-            return () => {
-                console.log(`Leaving group room: ${matchId}`);
-                socket.emit('leaveRoom', matchId);
-            };
-        }
-        // --- Private Chat Logic ---
-        else if (socket && isPrivateChatView) {
-            const otherUserId = selectedPrivateChatUser._id;
+        const fetchPrivateChat = async (otherUserId) => {
             console.log(`Fetching private chat history with user: ${otherUserId}`);
-            // No specific socket room needed for 1-on-1, handled by userSockets map on server
+            setError('');
+            setMessages([]);
+            setMeetingProposals([]);
+            try {
+                const historyRes = await api.get(`/messages/private/${otherUserId}`);
+                setMessages(historyRes.data);
+            } catch (err) {
+                console.error("Error fetching private chat data:", err);
+                setError(err.response?.data?.message || 'Failed to fetch private chat data.');
+            }
+        };
 
-            const fetchPrivateChatData = async () => {
-                setError('');
-                setMessages([]); // Clear previous messages
-                setMeetingProposals([]); // No meeting proposals in private chat view
-                try {
-                    // Fetch private messages between logged-in user and selected user
-                    const historyRes = await api.get(`/messages/private/${otherUserId}`);
-                    setMessages(historyRes.data); // API should return only relevant private messages
-                } catch (err) {
-                    console.error("Error fetching private chat data:", err);
-                    setError(err.response?.data?.message || 'Failed to fetch private chat data.');
-                    setMessages([]);
-                }
-            };
-            fetchPrivateChatData();
+        if (isGroupChatView) {
+            fetchAndJoinGroup(selectedMatch._id);
+        } else if (isPrivateChatView) {
+            fetchPrivateChat(selectedPrivateChatUser._id);
+        } else {
+            setMessages([]);
+            setMeetingProposals([]);
+        }
 
-            // No specific cleanup needed for socket rooms for private chat
-            return () => {};
-        }
-        // --- No Chat Selected ---
-        else {
-             setMessages([]);
-             setMeetingProposals([]);
-        }
-    }, [socket, selectedMatch, selectedPrivateChatUser]); // Re-run when socket, selected group, or selected private user changes
+        return () => {
+            if (isGroupChatView) {
+                console.log(`Leaving group room: ${selectedMatch._id}`);
+                socket.emit('leaveRoom', selectedMatch._id);
+            }
+            // No specific room to leave for private chats
+        };
+    }, [socket, selectedMatch?._id, selectedPrivateChatUser?._id]); // Re-run only when IDs change
 
     // --- Handlers ---
     const handleSelectMatch = (match) => {
@@ -324,7 +338,13 @@ const ChatPage = () => {
     };
 
 
-    const handleSendMessage = (messageText) => {
+    const handleSendMessage = async (messageText, uploadedMessage = null) => {
+        // If this is an uploaded message, just add it to the messages state
+        if (uploadedMessage) {
+            setMessages(prevMessages => [...prevMessages, uploadedMessage]);
+            return;
+        }
+
         if (!socket || !messageText) return;
 
         const isPrivate = !!selectedPrivateChatUser; // Determine if it's a private message
@@ -342,15 +362,24 @@ const ChatPage = () => {
              return;
         }
 
-
-        const messageData = {
-            matchId: contextMatchId, // Associate with the correct match context
-            text: messageText,
-            isPrivate: isPrivate,
-            recipientId: isPrivate ? selectedPrivateChatUser._id : undefined,
-        };
-        console.log("Sending message:", messageData);
-        socket.emit('sendMessage', messageData);
+        try {
+            // Send message data for socket processing
+            const messageData = {
+                matchId: contextMatchId, // Associate with the correct match context
+                text: messageText,
+                isPrivate: isPrivate,
+                recipientId: isPrivate ? selectedPrivateChatUser._id : undefined,
+            };
+            
+            console.log("Sending message via socket:", messageData);
+            
+            // Send via socket for real-time processing
+            socket.emit('sendMessage', messageData);
+            
+        } catch (error) {
+            console.error('Error sending message:', error);
+            setError(error.response?.data?.message || 'Failed to send message');
+        }
     };
 
     // Handler for when a chat is closed via the GroupInfo component
@@ -372,11 +401,11 @@ const ChatPage = () => {
     return (
         <div className="min-h-screen bg-neutral-50">
             {/* Chat Container - Full Height minus navbar */}
-            <div className="flex flex-col" style={{ height: 'calc(100vh - 80px)' }}>
+            <div className="chat-layout-container">
                 {/* Chat Layout */}
-                <div className="flex-1 flex overflow-hidden">
+                <div className="chat-main-area">
                     {/* Left Sidebar - Chat List */}
-                    <div className="w-80 bg-white border-r border-neutral-200 flex flex-col">
+                    <div className="w-80 bg-white border-r border-neutral-200 flex flex-col h-full">
                         <div className="flex-1 overflow-y-auto">
                             <RoomList
                                 matches={acceptedMatches}
@@ -390,7 +419,7 @@ const ChatPage = () => {
                     </div>
 
                     {/* Main Chat Area */}
-                    <div className="flex-1 flex flex-col bg-white">
+                    <div className="flex-1 bg-white h-full">
                         <MessagesView
                             messages={messages}
                             selectedMatch={selectedMatch}
@@ -401,7 +430,7 @@ const ChatPage = () => {
                     </div>
 
                     {/* Right Sidebar - Simplified Info Panel */}
-                    <div className="w-80 bg-neutral-50 border-l border-neutral-200 flex flex-col">
+                    <div className="w-80 bg-neutral-50 border-l border-neutral-200 flex flex-col h-full">
                         <GroupInfo
                             selectedMatch={selectedMatch}
                             meetingProposals={meetingProposals}
