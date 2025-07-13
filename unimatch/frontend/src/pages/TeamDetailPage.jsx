@@ -100,8 +100,8 @@ const TeamDetailPage = () => {
         setIsEditModalOpen(false);
     };
 
-    const isUserMember = team?.members.some(member => member._id === user.id);
-    const isUserCreator = team?.createdBy._id === user.id;
+    const isUserMember = team?.members.some(member => member._id === user._id);
+    const isUserCreator = team?.createdBy._id === user._id;
 
     if (loading) return <div className="text-center p-10">Loading team details...</div>;
     if (error) return <div className="text-center p-10 text-error">{error}</div>;
@@ -230,18 +230,35 @@ const TeamDetailPage = () => {
                         <DetailSection icon={UniversityIcon} title="Group Members">
                             <ul className="space-y-4">
                                 {team.members.map(member => (
-                                    <li key={member._id} className="flex items-center justify-between bg-neutral-50 p-3 rounded-lg">
-                                        <div className="flex items-center gap-3">
-                                            <GroupsIcon size={32} className="text-neutral-400" />
-                                            <div>
-                                                <p className="font-semibold text-neutral-800">{member.name}</p>
+                                    <li key={member._id} className="group flex items-center justify-between bg-neutral-50 p-3 rounded-lg hover:bg-neutral-100 transition-colors">
+                                        <div className="flex items-center gap-3 flex-1">
+                                            <div className="w-10 h-10 bg-gradient-sunset rounded-full flex items-center justify-center text-white font-bold">
+                                                {member.name ? member.name.charAt(0).toUpperCase() : '?'}
+                                            </div>
+                                            <div className="flex-1">
+                                                <Link 
+                                                    to={`/users/${member._id}`}
+                                                    className="font-semibold text-neutral-800 hover:text-primary-rose transition-colors cursor-pointer"
+                                                >
+                                                    {member.name || 'Unknown Member'}
+                                                </Link>
                                                 <p className="text-sm text-neutral-500">{member.email}</p>
                                             </div>
                                         </div>
-                                        {team.createdBy._id === member._id && <span className="badge badge-primary-light">Creator</span>}
-                            </li>
-                        ))}
-                    </ul>
+                                        <div className="flex items-center gap-2">
+                                            {team.createdBy._id === member._id && (
+                                                <span className="badge badge-primary-light">Creator</span>
+                                            )}
+                                            <Link 
+                                                to={`/users/${member._id}`}
+                                                className="btn btn-outline btn-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                View Profile
+                                            </Link>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
                         </DetailSection>
                         
                         {isUserMember && (

@@ -247,6 +247,11 @@ router.get('/search', protect, async (req, res, next) => {
     const university = req.query.university || '';
     const currentUserId = req.user.id; // Don't include the logged-in user in search results
 
+    console.log(`=== USER SEARCH DEBUG ===`);
+    console.log(`Search query: "${searchQuery}"`);
+    console.log(`University: "${university}"`);
+    console.log(`Current user: ${currentUserId}`);
+
     if (!university) {
         return res.status(400).json({ message: 'University parameter is required for search.' });
     }
@@ -257,6 +262,12 @@ router.get('/search', protect, async (req, res, next) => {
     try {
         // Create a regex for case-insensitive search
         const searchRegex = new RegExp(searchQuery, 'i');
+        
+        // Create a more specific regex for exact email matches
+        const exactEmailRegex = new RegExp(`^${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
+        console.log(`Search regex: ${searchRegex}`);
+        console.log(`Exact email regex: ${exactEmailRegex}`);
 
         // Find users matching name or email in the specified university, excluding the current user
         const users = await User.find({
@@ -268,11 +279,38 @@ router.get('/search', protect, async (req, res, next) => {
             ]
         })
         .select('name email _id university') // Select only necessary fields
-        .limit(10); // Limit results for performance
+        .limit(20) // Increased limit for better results
+        .lean(); // Use lean for better performance
 
-        res.json(users);
+        console.log(`Found ${users.length} users before sorting`);
+
+        // Sort results to prioritize exact email matches, then partial email matches, then name matches
+        const sortedUsers = users.sort((a, b) => {
+            const aExactEmail = exactEmailRegex.test(a.email);
+            const bExactEmail = exactEmailRegex.test(b.email);
+            const aPartialEmail = searchRegex.test(a.email) && !exactEmailRegex.test(a.email);
+            const bPartialEmail = searchRegex.test(b.email) && !exactEmailRegex.test(b.email);
+            
+            // Priority: 1. Exact email match, 2. Partial email match, 3. Name match
+            if (aExactEmail && !bExactEmail) return -1;
+            if (!aExactEmail && bExactEmail) return 1;
+            if (aPartialEmail && !bPartialEmail && !bExactEmail) return -1;
+            if (!aPartialEmail && bPartialEmail && !aExactEmail) return 1;
+            
+            // If same priority, sort alphabetically by name
+            return a.name.localeCompare(b.name);
+        });
+
+        console.log(`Sorted results: ${sortedUsers.map(u => `${u.name} (${u.email})`).join(', ')}`);
+
+        // Return top 10 results
+        const finalResults = sortedUsers.slice(0, 10);
+        console.log(`✅ Returning ${finalResults.length} search results`);
+
+        res.json(finalResults);
 
     } catch (err) {
+        console.error('❌ Error in user search:', err);
         next(err);
     }
 });
@@ -283,7 +321,7 @@ router.get('/search', protect, async (req, res, next) => {
 router.get('/:userId/profile', protect, async (req, res, next) => {
     try {
         const user = await User.findById(req.params.userId)
-            .select('name university bio photos createdAt'); // Select only public fields
+            .select('name university bio photos createdAt age major mbti socialStyle academicInterests personalityTraits hobbies musicGenres movieGenres sports friendshipGoals languages foodPreferences'); // Select public fields
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });

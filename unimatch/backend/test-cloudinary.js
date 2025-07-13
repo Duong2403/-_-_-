@@ -51,16 +51,22 @@ async function testCloudinaryConnection() {
         
     } catch (error) {
         console.log('❌ Cloudinary test failed:');
-        console.error('Error:', error.message);
+        console.error('Error:', error);
         
-        if (error.message.includes('Invalid cloud_name')) {
-            console.log('\n💡 Solution: Check your CLOUDINARY_CLOUD_NAME in .env file');
-        } else if (error.message.includes('Invalid API key')) {
-            console.log('\n💡 Solution: Check your CLOUDINARY_API_KEY in .env file');
-        } else if (error.message.includes('Invalid API secret')) {
-            console.log('\n💡 Solution: Check your CLOUDINARY_API_SECRET in .env file');
+        if (error && error.message) {
+            if (error.message.includes('Invalid cloud_name')) {
+                console.log('\n💡 Solution: Check your CLOUDINARY_CLOUD_NAME in .env file');
+            } else if (error.message.includes('Invalid API key')) {
+                console.log('\n💡 Solution: Check your CLOUDINARY_API_KEY in .env file');
+            } else if (error.message.includes('Invalid API secret')) {
+                console.log('\n💡 Solution: Check your CLOUDINARY_API_SECRET in .env file');
+            } else {
+                console.log('\n💡 Please check your Cloudinary credentials and network connection');
+                console.log('Error details:', error.message);
+            }
         } else {
-            console.log('\n💡 Please check your Cloudinary credentials and network connection');
+            console.log('\n💡 Unknown error occurred. Please check your Cloudinary credentials and network connection');
+            console.log('Error details:', error);
         }
     }
 }

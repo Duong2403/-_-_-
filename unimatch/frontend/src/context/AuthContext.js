@@ -26,6 +26,8 @@ export const AuthProvider = ({ children }) => {
           // Token might be invalid, clear it
           setToken(null);
           setUser(null);
+          // Also remove from localStorage to prevent repeated failed requests
+          localStorage.removeItem('authToken');
         }
       }
       setLoading(false); // Finished loading attempt
@@ -69,7 +71,9 @@ export const AuthProvider = ({ children }) => {
   // Logout function
   const logout = () => {
     setUser(null);
-    setToken(null); // This will trigger the interceptor removal and localStorage cleanup via useEffect
+    setToken(null);
+    // Explicitly clear localStorage
+    localStorage.removeItem('authToken');
   };
 
   return (

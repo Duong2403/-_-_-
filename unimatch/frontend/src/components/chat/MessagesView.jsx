@@ -1,10 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { SendIcon, EmojiIcon, AttachmentIcon, MessageIcon, GroupsIcon } from '../ui/SocialIcons';
-import { uploadChatImage } from '../../services/api';
+import { uploadChatImage, uploadTeamChatImage } from '../../services/api';
 import EmojiPicker from './EmojiPicker';
 import ImageUpload from './ImageUpload';
 
-const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, onSendMessage }) => {
+const MessagesView = ({ messages, selectedMatch, selectedTeamChat, selectedPrivateChatUser, user, onSendMessage }) => {
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
     const [newMessage, setNewMessage] = useState('');
@@ -64,10 +64,15 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
         });
         console.log('2. Chat state:', {
             isPrivateChatView,
+            isTeamChatView,
             selectedMatch: selectedMatch ? {
                 id: selectedMatch._id,
                 requestingTeam: selectedMatch.requestingTeam?.name,
                 receivingTeam: selectedMatch.receivingTeam?.name
+            } : null,
+            selectedTeamChat: selectedTeamChat ? {
+                id: selectedTeamChat._id,
+                teamName: selectedTeamChat.teamInfo?.name
             } : null,
             selectedPrivateChatUser: selectedPrivateChatUser ? {
                 id: selectedPrivateChatUser._id,
@@ -85,19 +90,23 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
 
         try {
             const isPrivate = !!isPrivateChatView; // Convert to boolean
+            const isTeamImage = !!isTeamChatView; // Convert to boolean
             const matchId = isPrivate ? selectedPrivateChatUser?.matchIdContext : selectedMatch?._id;
+            const teamId = isTeamImage ? selectedTeamChat?.teamInfo?._id : null;
             const recipientId = isPrivate ? selectedPrivateChatUser?._id : null;
 
             console.log('Upload parameters:', {
                 isPrivate,
+                isTeamImage,
                 matchId,
+                teamId,
                 recipientId,
                 imageFileName: imageFile.name,
                 imageSize: imageFile.size
             });
 
-            if (!matchId) {
-                throw new Error(`No match selected. isPrivate: ${isPrivate}, selectedMatch: ${selectedMatch?._id}, selectedPrivateChatUser.matchIdContext: ${selectedPrivateChatUser?.matchIdContext}`);
+            if (!matchId && !teamId) {
+                throw new Error(`No context selected. isPrivate: ${isPrivate}, isTeamImage: ${isTeamImage}, selectedMatch: ${selectedMatch?._id}, selectedTeamChat: ${selectedTeamChat?.teamInfo?._id}, selectedPrivateChatUser.matchIdContext: ${selectedPrivateChatUser?.matchIdContext}`);
             }
 
             // Simulate progress for better UX
@@ -122,15 +131,25 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
                 throw new Error('Cannot connect to backend server. Please check if the server is running.');
             }
 
-            console.log('5. Calling uploadChatImage API...');
-            console.log('6. API call parameters:', {
-                imageFile: imageFile.name,
-                matchId,
-                isPrivate,
-                recipientId
-            });
+            console.log('5. Calling upload API...');
             
-            const uploadedMessage = await uploadChatImage(imageFile, matchId, isPrivate, recipientId);
+            let uploadedMessage;
+            if (isTeamImage) {
+                console.log('6. Team chat API call parameters:', {
+                    imageFile: imageFile.name,
+                    teamId
+                });
+                uploadedMessage = await uploadTeamChatImage(imageFile, teamId);
+            } else {
+                console.log('6. Match chat API call parameters:', {
+                    imageFile: imageFile.name,
+                    matchId,
+                    isPrivate,
+                    recipientId
+                });
+                uploadedMessage = await uploadChatImage(imageFile, matchId, isPrivate, recipientId);
+            }
+            
             console.log('7. Upload successful:', uploadedMessage);
             console.log('=== IMAGE UPLOAD DEBUG END ===');
             
@@ -157,7 +176,8 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
     };
 
     // Determine chat context
-    const isGroupChatView = selectedMatch && !selectedPrivateChatUser;
+    const isGroupChatView = selectedMatch && !selectedPrivateChatUser && !selectedTeamChat;
+    const isTeamChatView = selectedTeamChat && !selectedPrivateChatUser && !selectedMatch;
     const isPrivateChatView = selectedPrivateChatUser;
 
     // Get chat header info
@@ -169,16 +189,25 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
             return {
                 name: otherTeam?.name || 'Team Chat',
                 subtitle: `${selectedMatch.requestingTeam?.members?.length || 0} + ${selectedMatch.receivingTeam?.members?.length || 0} members`,
-                isGroup: true
+                isGroup: true,
+                isTeam: false
+            };
+        } else if (isTeamChatView) {
+            return {
+                name: selectedTeamChat.teamInfo?.name || 'Team Chat',
+                subtitle: `${selectedTeamChat.teamInfo?.members?.length || 0} team members`,
+                isGroup: true,
+                isTeam: true
             };
         } else if (isPrivateChatView) {
             return {
                 name: selectedPrivateChatUser.name,
                 subtitle: 'Active now',
-                isGroup: false
+                isGroup: false,
+                isTeam: false
             };
         }
-        return { name: 'Select a Chat', subtitle: '', isGroup: false };
+        return { name: 'Select a Chat', subtitle: '', isGroup: false, isTeam: false };
     };
 
     const headerInfo = getChatHeaderInfo();
@@ -211,6 +240,7 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 bg-white flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
+                        headerInfo.isTeam ? 'bg-blue-500' :
                         headerInfo.isGroup ? 'bg-gradient-friendship' : 'bg-gradient-love'
                     }`}>
                         {headerInfo.isGroup ? (
@@ -242,7 +272,7 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
                 ref={messagesContainerRef}
                 className="chat-messages-container px-4 py-3 bg-neutral-50 bg-opacity-30 chat-scroll"
             >
-                {isGroupChatView || isPrivateChatView ? (
+                {(isGroupChatView || isTeamChatView || isPrivateChatView) ? (
                     <>
                         {/* Load More Button */}
                         {hasMoreMessages && (
@@ -330,6 +360,8 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
                                     <p className="text-neutral-600 text-sm">
                                         {isPrivateChatView 
                                             ? `Start a private conversation with ${selectedPrivateChatUser.name}`
+                                            : isTeamChatView
+                                            ? 'Start chatting with your team members!'
                                             : 'Send the first message to break the ice!'
                                         }
                                     </p>
@@ -355,7 +387,7 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
             </div>
 
             {/* Message Input - Fixed at bottom */}
-            {(isGroupChatView || isPrivateChatView) && (
+            {(isGroupChatView || isTeamChatView || isPrivateChatView) && (
                 <div className="chat-input-area p-4">
                     <form onSubmit={handleFormSubmit} className="flex items-end gap-3">
                         {/* Quick Actions */}
@@ -396,6 +428,8 @@ const MessagesView = ({ messages, selectedMatch, selectedPrivateChatUser, user, 
                                     onChange={handleInputChange}
                                     placeholder={isPrivateChatView 
                                         ? `Message ${selectedPrivateChatUser.name} privately...` 
+                                        : isTeamChatView
+                                        ? `Message your team...`
                                         : "Type a message..."
                                     }
                                     className="w-full px-4 py-3 bg-transparent border-0 rounded-2xl text-sm focus:outline-none placeholder-neutral-500"

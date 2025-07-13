@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { UNIVERSITIES, getUniversityDbValue, getUniversityDisplayName } from '../constants/universities';
+import DiscoverableTeamCard from '../components/DiscoverableTeamCard';
+import JoinRequestsModal from '../components/JoinRequestsModal';
+import { useToast } from '../components/Toast';
 
 import { 
   GroupsIcon,
@@ -19,7 +23,9 @@ import {
   LogoutIcon,
   XIcon,
   ChevronDownIcon,
-  ChevronUpIcon
+  ChevronUpIcon,
+  AlertCircleIcon,
+  RefreshIcon
 } from '../components/ui/Icons';
 
 // --- Predefined Options for Selectors ---
@@ -59,6 +65,7 @@ const CreateTeamForm = ({ onCreateSuccess }) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    university: '',
     teamComposition: '2:2',
     teamVibe: [],
     topInterests: [],
@@ -91,6 +98,7 @@ const CreateTeamForm = ({ onCreateSuccess }) => {
     setFormData({
       name: '',
       description: '',
+      university: '',
       teamComposition: '2:2',
       teamVibe: [],
       topInterests: [],
@@ -107,7 +115,12 @@ const CreateTeamForm = ({ onCreateSuccess }) => {
     setLoading(true);
     setError('');
     try {
-      const res = await api.post('/teams', formData);
+      // Convert university display name to database value
+      const submitData = {
+        ...formData,
+        university: getUniversityDbValue(formData.university)
+      };
+      const res = await api.post('/teams', submitData);
       onCreateSuccess(res.data);
       resetForm();
       setShowForm(false);
@@ -158,7 +171,7 @@ const CreateTeamForm = ({ onCreateSuccess }) => {
         )}
         
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="form-group">
               <label className="form-label">Group Name *</label>
               <input
@@ -171,6 +184,24 @@ const CreateTeamForm = ({ onCreateSuccess }) => {
                 required
               />
             </div>
+            <div className="form-group">
+              <label className="form-label">School/University *</label>
+              <select
+                name="university"
+                className="form-input"
+                value={formData.university}
+                onChange={handleInputChange}
+                required
+              >
+                <option value="">Select your school...</option>
+                {UNIVERSITIES.map(uni => (
+                  <option key={uni} value={uni}>{uni}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="form-group">
               <label className="form-label">Team Composition *</label>
               <select
@@ -301,8 +332,8 @@ const CreateTeamForm = ({ onCreateSuccess }) => {
   );
 };
 
-// Team Card Component
-const TeamCard = ({ team, isMyTeam, onLeave, onDelete }) => {
+// Team Card Component (memoized for performance)
+const TeamCard = React.memo(({ team, isMyTeam, onLeave, onDelete, onActivate, actionLoading }) => {
   const { user } = useAuth();
   
   const getGenderIcon = (gender) => {
@@ -335,8 +366,8 @@ const TeamCard = ({ team, isMyTeam, onLeave, onDelete }) => {
     return 'bg-gradient-primary';
   };
 
-  const isCreator = team.createdBy?._id === user?.id || team.createdBy === user?.id;
-  const isMember = team.members?.some(member => member._id === user?.id || member === user?.id);
+  const isCreator = team.createdBy?._id === user?._id || team.createdBy === user?._id;
+  const isMember = team.members?.some(member => member._id === user?._id || member === user?._id);
 
   return (
     <div className="card group hover:shadow-xl transition-all duration-300 transform hover:scale-105">
@@ -351,6 +382,9 @@ const TeamCard = ({ team, isMyTeam, onLeave, onDelete }) => {
             <span className={`badge text-white ${getGenderColor(team.teamGender)}`}>
               {getGenderIcon(team.teamGender)}
               <span className="ml-1">{team.teamGender}</span>
+            </span>
+            <span className={`badge ${team.status === 'forming' ? 'badge-warning' : team.status === 'active' ? 'badge-success' : 'badge-info'}`}>
+              {team.status}
             </span>
           </div>
         </div>
@@ -424,102 +458,352 @@ const TeamCard = ({ team, isMyTeam, onLeave, onDelete }) => {
           
           {/* Management Actions for My Teams */}
           {isMyTeam && (
-            <div className="flex gap-2">
-              {isCreator ? (
+            <div className="space-y-2">
+              {/* Activation Button for Forming Teams */}
+              {isCreator && team.status === 'forming' && (
                 <button
-                  onClick={() => onDelete(team)}
-                  className="btn btn-error w-full text-sm"
+                  onClick={() => onActivate(team)}
+                  disabled={actionLoading?.activating === team._id}
+                  className="btn btn-success w-full text-sm"
                 >
-                  <TrashIcon className="mr-1" size={14} />
-                  Delete Team
-                </button>
-              ) : isMember && (
-                <button
-                  onClick={() => onLeave(team)}
-                  className="btn btn-outline w-full text-sm"
-                >
-                  <LogoutIcon className="mr-1" size={14} />
-                  Leave Team
+                  {actionLoading?.activating === team._id ? (
+                    <>
+                      <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-1"></div>
+                      Activating...
+                    </>
+                  ) : (
+                    <>
+                      <SparkIcon className="mr-1" size={14} />
+                      Activate Team
+                    </>
+                  )}
                 </button>
               )}
+              
+              <div className="flex gap-2">
+                {isCreator ? (
+                  <button
+                    onClick={() => onDelete(team)}
+                    disabled={actionLoading?.deleting === team._id}
+                    className="btn btn-error w-full text-sm"
+                  >
+                    {actionLoading?.deleting === team._id ? (
+                      <>
+                        <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-1"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <TrashIcon className="mr-1" size={14} />
+                        Delete Team
+                      </>
+                    )}
+                  </button>
+                ) : isMember && (
+                  <button
+                    onClick={() => onLeave(team)}
+                    disabled={actionLoading?.leaving === team._id}
+                    className="btn btn-outline w-full text-sm"
+                  >
+                    {actionLoading?.leaving === team._id ? (
+                      <>
+                        <div className="animate-spin w-4 h-4 border-2 border-neutral-600 border-t-transparent rounded-full mr-1"></div>
+                        Leaving...
+                      </>
+                    ) : (
+                      <>
+                        <LogoutIcon className="mr-1" size={14} />
+                        Leave Team
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
     </div>
   );
-};
+});
 
 // Main Teams Page Component
 const TeamsPageModern = () => {
   const { user } = useAuth();
+  const { showSuccess, showError, showInfo } = useToast();
   const [myTeams, setMyTeams] = useState([]);
   const [discoverTeams, setDiscoverTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedSchool, setSelectedSchool] = useState('');
+  const [showJoinRequests, setShowJoinRequests] = useState(false);
+  const [actionLoading, setActionLoading] = useState({
+    leaving: null,
+    deleting: null,
+    activating: null
+  });
   
+  // Add refresh function for discovery teams
+  const refreshDiscoveryTeams = useCallback(async () => {
+    console.log('=== REFRESHING DISCOVERY TEAMS ===');
+    console.log(`Selected school filter: "${selectedSchool}"`);
+    
+    try {
+      const endpoint = `/teams${selectedSchool ? `?school=${getUniversityDbValue(selectedSchool)}` : ''}`;
+      console.log(`Fetching from: ${endpoint}`);
+      
+      const response = await api.get(endpoint);
+      console.log(`✅ Discovery refresh successful: ${response.data.length} teams found`);
+      
+      setDiscoverTeams(response.data);
+      setError(''); // Clear any previous errors
+      
+    } catch (err) {
+      console.error('❌ Error refreshing discovery teams:', err);
+      console.error('Error details:', err.response?.data);
+      
+      // Don't overwrite teams on refresh error, just log it
+      const errorMessage = err.response?.data?.message || 'Failed to refresh discovery teams';
+      console.error(`Discovery refresh failed: ${errorMessage}`);
+      
+      // Only set error if we have no teams currently displayed
+      if (discoverTeams.length === 0) {
+        setError(errorMessage);
+      }
+    }
+  }, [selectedSchool, discoverTeams.length]);
 
 
   useEffect(() => {
     const fetchTeams = async () => {
+      console.log('=== FETCHING TEAMS ===');
+      console.log(`Selected school: "${selectedSchool}"`);
+      
       setLoading(true);
       setError('');
       try {
         const [myTeamsRes, discoverTeamsRes] = await Promise.all([
           api.get('/teams/my-teams'),
-          api.get('/teams')
+          api.get(`/teams${selectedSchool ? `?school=${getUniversityDbValue(selectedSchool)}` : ''}`)
         ]);
+        
+        console.log(`✅ My teams: ${myTeamsRes.data.length}`);
+        console.log(`✅ Discovery teams: ${discoverTeamsRes.data.length}`);
+        
         setMyTeams(myTeamsRes.data);
         setDiscoverTeams(discoverTeamsRes.data);
       } catch (err) {
-        console.error("Error fetching teams:", err);
-        setError(err.response?.data?.message || 'Failed to fetch teams.');
+        console.error("❌ Error fetching teams:", err);
+        console.error("Error details:", err.response?.data);
+        
+        // Handle errors separately for each request
+        if (err.response?.status === 404) {
+          setError('Teams endpoint not found. Please check your server.');
+        } else if (err.response?.status === 401) {
+          setError('You need to be logged in to view teams.');
+        } else {
+          setError(err.response?.data?.message || 'Failed to fetch teams. Please try again.');
+        }
+        // Set empty arrays on error to prevent crashes
+        setMyTeams([]);
+        setDiscoverTeams([]);
       } finally {
         setLoading(false);
       }
     };
     fetchTeams();
-  }, []);
+  }, [selectedSchool]);
 
   const handleTeamCreated = (newTeam) => {
+    console.log('✅ New team created:', newTeam.name);
     setMyTeams(prev => [newTeam, ...prev]);
+    
+    // Refresh discovery teams to ensure the new team doesn't appear in discovery
+    // (since user is now a member)
+    setTimeout(() => {
+      refreshDiscoveryTeams();
+    }, 1000);
   };
 
+  // Enhanced join request handler with better feedback
+  const handleJoinRequestSuccess = useCallback((team) => {
+    console.log(`✅ Join request successful for team: ${team.name} (${team._id})`);
+    
+    // Remove the team from discovery list immediately for better UX
+    setDiscoverTeams(prev => {
+      const filtered = prev.filter(t => t._id !== team._id);
+      console.log(`Removed team from discovery, ${filtered.length} teams remaining`);
+      return filtered;
+    });
+    
+    // Show success message
+    showInfo(`Join request sent to "${team.name}"! You'll be notified when they respond.`);
+    
+    // Refresh discovery teams after a short delay to ensure backend state is consistent
+    setTimeout(() => {
+      console.log('Refreshing discovery teams after join request...');
+      refreshDiscoveryTeams();
+    }, 2000);
+    
+  }, [refreshDiscoveryTeams, showInfo]);
 
+  // Listen for team membership changes from other components
+  useEffect(() => {
+    const handleTeamMembershipChange = (event) => {
+      const { action, teamId, teamName } = event.detail;
+      console.log(`🔄 Team membership changed: ${action} for team ${teamName} (${teamId})`);
+      
+      // Refresh both my teams and discovery teams
+      setTimeout(() => {
+        const fetchUpdatedTeams = async () => {
+          try {
+            const myTeamsRes = await api.get('/teams/my-teams');
+            setMyTeams(myTeamsRes.data);
+            console.log(`✅ Updated my teams after membership change`);
+          } catch (err) {
+            console.error('❌ Error refreshing my teams after membership change:', err);
+          }
+        };
+        
+        fetchUpdatedTeams();
+        refreshDiscoveryTeams();
+      }, 1000);
+    };
 
-  const handleLeaveTeam = async (team) => {
+    window.addEventListener('teamMembershipChanged', handleTeamMembershipChange);
+    
+    return () => {
+      window.removeEventListener('teamMembershipChanged', handleTeamMembershipChange);
+    };
+  }, [refreshDiscoveryTeams]);
+
+  // Add socket.io integration for real-time updates
+  useEffect(() => {
+    // Only set up socket if user is logged in
+    if (!user?._id) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socketUrl = `${protocol}//${window.location.host}`;
+    
+    // Import socket.io-client dynamically to avoid SSR issues
+    import('socket.io-client').then(({ io }) => {
+      const socket = io(socketUrl, {
+        auth: {
+          token: localStorage.getItem('token') // Assuming token is stored in localStorage
+        }
+      });
+
+      socket.on('connect', () => {
+        console.log('✅ Socket connected for team updates');
+      });
+
+      socket.on('teamMembershipChanged', (data) => {
+        console.log('🔄 Real-time team membership change:', data);
+        
+        const { action, teamId, teamName, message } = data;
+        
+        // Show appropriate message to user
+        if (action === 'joined') {
+          showSuccess(message || `You've joined "${teamName}"!`);
+        } else if (action === 'member_added') {
+          showInfo(message || `${data.newMemberName} joined your team "${teamName}"`);
+        } else if (action === 'left') {
+          showInfo(message || `You've left "${teamName}"`);
+        }
+        
+        // Refresh team data
+        setTimeout(async () => {
+          try {
+            console.log('🔄 Refreshing teams after real-time update...');
+            const myTeamsRes = await api.get('/teams/my-teams');
+            setMyTeams(myTeamsRes.data);
+            refreshDiscoveryTeams();
+            console.log('✅ Teams refreshed after real-time update');
+          } catch (err) {
+            console.error('❌ Error refreshing teams after real-time update:', err);
+          }
+        }, 500);
+      });
+
+      socket.on('disconnect', () => {
+        console.log('❌ Socket disconnected');
+      });
+
+      // Cleanup function
+      return () => {
+        socket.disconnect();
+      };
+    }).catch(err => {
+      console.error('Failed to import socket.io-client:', err);
+    });
+  }, [user?._id, refreshDiscoveryTeams, showSuccess, showInfo]);
+
+  const handleLeaveTeam = useCallback(async (team) => {
     const confirmLeave = window.confirm(
       `Are you sure you want to leave "${team.name}"? This action cannot be undone.`
     );
     
     if (!confirmLeave) return;
 
+    setActionLoading(prev => ({ ...prev, leaving: team._id }));
     try {
       await api.post(`/teams/${team._id}/leave`);
       setMyTeams(prev => prev.filter(t => t._id !== team._id));
-      alert('Successfully left the team.');
+      
+      // Dispatch a custom event to notify other components about team membership change
+      window.dispatchEvent(new CustomEvent('teamMembershipChanged', {
+        detail: { action: 'left', teamId: team._id, teamName: team.name }
+      }));
+      
+      showSuccess('Successfully left the team.');
     } catch (err) {
       console.error("Error leaving team:", err);
-      alert(err.response?.data?.message || 'Failed to leave team.');
+      showError(err.response?.data?.message || 'Failed to leave team.');
+    } finally {
+      setActionLoading(prev => ({ ...prev, leaving: null }));
     }
-  };
+  }, [showSuccess, showError]);
 
-  const handleDeleteTeam = async (team) => {
+  const handleDeleteTeam = useCallback(async (team) => {
     const confirmDelete = window.confirm(
       `Are you sure you want to delete "${team.name}"? This action cannot be undone and will remove all team data.`
     );
     
     if (!confirmDelete) return;
 
+    setActionLoading(prev => ({ ...prev, deleting: team._id }));
     try {
       await api.delete(`/teams/${team._id}`);
       setMyTeams(prev => prev.filter(t => t._id !== team._id));
-      alert('Team successfully deleted.');
+      showSuccess('Team successfully deleted.');
     } catch (err) {
       console.error("Error deleting team:", err);
-      alert(err.response?.data?.message || 'Failed to delete team.');
+      showError(err.response?.data?.message || 'Failed to delete team.');
+    } finally {
+      setActionLoading(prev => ({ ...prev, deleting: null }));
     }
-  };
+  }, [showSuccess, showError]);
+
+  const handleActivateTeam = useCallback(async (team) => {
+    const confirmActivate = window.confirm(
+      `Are you ready to activate "${team.name}"? Once activated, other teams will be able to see and match with your team.`
+    );
+    
+    if (!confirmActivate) return;
+
+    setActionLoading(prev => ({ ...prev, activating: team._id }));
+    try {
+      const response = await api.post(`/teams/${team._id}/activate`);
+      // Update the team in myTeams with the new status
+      setMyTeams(prev => prev.map(t => t._id === team._id ? response.data : t));
+      showSuccess('Team successfully activated! Other teams can now see and match with your team.');
+    } catch (err) {
+      console.error("Error activating team:", err);
+      showError(err.response?.data?.message || 'Failed to activate team.');
+    } finally {
+      setActionLoading(prev => ({ ...prev, activating: null }));
+    }
+  }, [showSuccess, showError]);
 
   if (loading) {
     return (
@@ -573,14 +857,23 @@ const TeamsPageModern = () => {
         {/* My Teams Section */}
         {myTeams.length > 0 && (
           <div className="mb-12">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
-                <GroupsIcon className="text-white" size={16} />
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
+                  <GroupsIcon className="text-white" size={16} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold text-neutral-800">My Groups</h2>
+                  <p className="text-sm text-neutral-500">Groups you've created or joined ({myTeams.length})</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-2xl font-semibold text-neutral-800">My Groups</h2>
-                <p className="text-sm text-neutral-500">Groups you've created or joined ({myTeams.length})</p>
-              </div>
+              <button
+                onClick={() => setShowJoinRequests(true)}
+                className="btn btn-outline"
+              >
+                <GroupsIcon className="mr-2" size={16} />
+                Manage Join Requests
+              </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {myTeams.map(team => (
@@ -590,6 +883,8 @@ const TeamsPageModern = () => {
                   isMyTeam={true}
                   onLeave={handleLeaveTeam}
                   onDelete={handleDeleteTeam}
+                  onActivate={handleActivateTeam}
+                  actionLoading={actionLoading}
                 />
               ))}
             </div>
@@ -598,42 +893,134 @@ const TeamsPageModern = () => {
 
         {/* Discover Teams Section */}
         <div>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-8 h-8 bg-gradient-friendship rounded-full flex items-center justify-center">
-              <SparkIcon className="text-white" size={16} />
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-friendship rounded-full flex items-center justify-center">
+                <SparkIcon className="text-white" size={16} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold text-neutral-800">Discover Other Groups</h2>
+                <p className="text-sm text-neutral-500">Find new groups to connect with ({discoverTeams.length} available)</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-semibold text-neutral-800">Discover Other Groups</h2>
-              <p className="text-sm text-neutral-500">Find new groups from your university to connect with ({discoverTeams.length} available)</p>
+            <div className="flex items-center gap-3">
+              <label htmlFor="schoolFilter" className="text-sm font-medium text-neutral-700">
+                Filter by School:
+              </label>
+              <select
+                id="schoolFilter"
+                value={selectedSchool}
+                onChange={(e) => setSelectedSchool(e.target.value)}
+                className="form-input w-64"
+                disabled={loading}
+              >
+                <option value="">All Schools</option>
+                {UNIVERSITIES.map(uni => (
+                  <option key={uni} value={uni}>{uni}</option>
+                ))}
+              </select>
             </div>
           </div>
-           {discoverTeams.length > 0 ? (
+          
+          {loading ? (
+            <div className="text-center py-16 bg-white rounded-xl shadow-sm border border-neutral-200">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center animate-pulse">
+                  <SparkIcon className="text-neutral-400" size={24} />
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold text-neutral-800 mb-2">Loading Teams...</h3>
+              <p className="text-neutral-600">Please wait while we fetch available teams</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-16 bg-red-50 rounded-xl shadow-sm border border-red-200">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertCircleIcon className="text-red-500" size={24} />
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold text-red-800 mb-2">Error Loading Teams</h3>
+              <p className="text-red-600 max-w-md mx-auto">{error}</p>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="btn btn-outline mt-4"
+              >
+                <RefreshIcon className="mr-2" size={16} />
+                Retry
+              </button>
+            </div>
+          ) : discoverTeams.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {discoverTeams.map(team => (
-                <TeamCard 
+                <DiscoverableTeamCard 
                   key={team._id} 
                   team={team} 
-                  isMyTeam={false}
+                  onJoinRequest={handleJoinRequestSuccess}
                 />
               ))}
             </div>
-             ) : (
-                <div className="text-center py-16 bg-white rounded-xl shadow-sm border border-neutral-200">
-                  <div className="flex justify-center mb-4">
-                    <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center">
-                      <SparkIcon className="text-neutral-400" size={24} />
-                    </div>
-                  </div>
-                  <h3 className="text-lg font-semibold text-neutral-800 mb-2">No Groups to Discover</h3>
-                  <p className="text-neutral-600 max-w-md mx-auto">
-                    No other teams from your university are available right now. Check back later or be the first to create a group!
-                  </p>
+          ) : (
+            <div className="text-center py-16 bg-white rounded-xl shadow-sm border border-neutral-200">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center">
+                  <SparkIcon className="text-neutral-400" size={24} />
                 </div>
-            )}
+              </div>
+              <h3 className="text-lg font-semibold text-neutral-800 mb-2">No Groups to Discover</h3>
+              <p className="text-neutral-600 max-w-md mx-auto mb-4">
+                {selectedSchool 
+                  ? `No active teams from ${selectedSchool} are available right now.`
+                  : 'No active teams are available for discovery right now.'
+                }
+              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
+                <p className="text-blue-800 text-sm">
+                  <strong>Tip:</strong> {selectedSchool 
+                    ? 'Try clearing the school filter to see teams from all universities, or check back later for new teams!'
+                    : 'If you\'ve created teams, make sure to activate them using the "Activate Team" button in your groups section above!'
+                  }
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
 
       </div>
+
+      {/* Join Requests Modal */}
+      <JoinRequestsModal
+        isOpen={showJoinRequests}
+        onClose={() => setShowJoinRequests(false)}
+        onRequestProcessed={(action, requestData) => {
+          console.log(`🔄 Join request processed: ${action}`, requestData);
+          
+          // Enhanced refresh logic based on action
+          const fetchMyTeams = async () => {
+            try {
+              const response = await api.get('/teams/my-teams');
+              setMyTeams(response.data);
+              console.log(`✅ My teams refreshed after ${action}`);
+              
+              // If someone was approved, also refresh discovery teams
+              if (action === 'approved') {
+                await refreshDiscoveryTeams();
+                console.log(`✅ Discovery teams refreshed after approval`);
+                
+                // Show celebration message for team growth
+                if (requestData?.applicant?.name && requestData?.team?.name) {
+                  showSuccess(`🎉 ${requestData.applicant.name} joined your team "${requestData.team.name}"!`);
+                }
+              }
+            } catch (err) {
+              console.error('❌ Error refreshing teams after join request processing:', err);
+              showError('Failed to refresh team data. Please refresh the page.');
+            }
+          };
+          
+          fetchMyTeams();
+        }}
+      />
     </div>
   );
 };

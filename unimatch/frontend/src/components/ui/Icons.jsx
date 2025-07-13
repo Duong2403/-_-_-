@@ -130,6 +130,18 @@ export const SearchIcon = ({ className, ...props }) => (
   </Icon>
 );
 
+export const FilterIcon = ({ className, ...props }) => (
+  <Icon className={className} {...props}>
+    <polygon
+      points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Icon>
+);
+
 // Communication Icons
 export const ChatIcon = ({ className, ...props }) => (
   <Icon className={className} {...props}>
@@ -418,6 +430,100 @@ export const AlertTriangleIcon = ({ className, ...props }) => (
   </Icon>
 );
 
+export const AlertCircleIcon = ({ className, ...props }) => (
+  <Icon className={className} {...props}>
+    <circle
+      cx="12"
+      cy="12"
+      r="10"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <line
+      x1="12"
+      y1="8"
+      x2="12"
+      y2="12"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <line
+      x1="12"
+      y1="16"
+      x2="12.01"
+      y2="16"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Icon>
+);
+
+export const InfoIcon = ({ className, ...props }) => (
+  <Icon className={className} {...props}>
+    <circle
+      cx="12"
+      cy="12"
+      r="10"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <line
+      x1="12"
+      y1="16"
+      x2="12"
+      y2="12"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <line
+      x1="12"
+      y1="8"
+      x2="12.01"
+      y2="8"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Icon>
+);
+
+export const RefreshIcon = ({ className, ...props }) => (
+  <Icon className={className} {...props}>
+    <polyline
+      points="23,4 23,10 17,10"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <polyline
+      points="1,20 1,14 7,14"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M20.49 9C19.9828 7.56678 19.1209 6.28392 17.9845 5.27353C16.8482 4.26314 15.4745 3.55529 13.9917 3.21043C12.5089 2.86557 10.9652 2.89479 9.49827 3.29543C8.03137 3.69607 6.68693 4.45319 5.58 5.49L1 10M23 14L18.42 18.51C17.3131 19.5468 15.9686 20.3039 14.5017 20.7046C13.0348 21.1052 11.4911 21.1344 10.0083 20.7896C8.52547 20.4447 7.1518 19.7369 6.01547 18.7265C4.87913 17.7161 4.01717 16.4332 3.51 15"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Icon>
+);
+
 // Team Management Icons
 export const EditIcon = ({ className, ...props }) => (
   <Icon className={className} {...props}>
@@ -449,6 +555,30 @@ export const TrashIcon = ({ className, ...props }) => (
     />
     <path
       d="M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Icon>
+);
+
+export const ChevronDownIcon = ({ className, ...props }) => (
+  <Icon className={className} {...props}>
+    <polyline
+      points="6,9 12,15 18,9"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Icon>
+);
+
+export const ChevronUpIcon = ({ className, ...props }) => (
+  <Icon className={className} {...props}>
+    <polyline
+      points="18,15 12,9 6,15"
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"

@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { useAuth } from './context/AuthContext'; // Import useAuth
+import ErrorBoundary from './components/ErrorBoundary';
+import { ToastProvider } from './components/Toast';
 
 // Page Components
 import LoginPage from './components/Login'; // Using component directly for now
@@ -305,37 +307,55 @@ function App() {
 
   // Avoid rendering routes until auth state is loaded
   if (loading) {
-      return <div>Loading Application...</div>;
+      return (
+        <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin w-8 h-8 border-2 border-primary-rose border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-neutral-600">Loading Application...</p>
+          </div>
+        </div>
+      );
   }
 
   return (
-    <Router>
-      <Navbar />
-      <main>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+    <ErrorBoundary>
+      <ToastProvider>
+        <Router>
+          <Navbar />
+          <main>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<HomePage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
 
-          {/* Protected Routes */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/teams" element={<TeamsPageModern />} />
-            <Route path="/teams-modern" element={<TeamsPageModern />} /> {/* Alternative route for enhanced teams page */}
-            <Route path="/teams/:teamId" element={<TeamDetailPage />} /> {/* Add route for team detail */}
-            <Route path="/matching" element={<MatchingPage />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/users/:userId" element={<PublicProfilePage />} /> {/* Add route for public profile */}
-            {/* Add more protected routes here */}
-          </Route>
+              {/* Protected Routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/teams" element={<TeamsPageModern />} />
+                <Route path="/teams-modern" element={<TeamsPageModern />} /> {/* Alternative route for enhanced teams page */}
+                <Route path="/teams/:teamId" element={<TeamDetailPage />} /> {/* Add route for team detail */}
+                <Route path="/matching" element={<MatchingPage />} />
+                <Route path="/chat" element={<ChatPage />} />
+                <Route path="/users/:userId" element={<PublicProfilePage />} /> {/* Add route for public profile */}
+                {/* Add more protected routes here */}
+              </Route>
 
-          {/* Optional: Add a 404 Not Found Route */}
-          <Route path="*" element={<div><h2>404 Not Found</h2><Link to="/">Go Home</Link></div>} />
-        </Routes>
-      </main>
-    </Router>
+              {/* Optional: Add a 404 Not Found Route */}
+              <Route path="*" element={
+                <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+                  <div className="text-center">
+                    <h2 className="text-2xl font-semibold text-neutral-800 mb-4">404 Not Found</h2>
+                    <Link to="/" className="btn btn-primary">Go Home</Link>
+                  </div>
+                </div>
+              } />
+            </Routes>
+          </main>
+        </Router>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 
