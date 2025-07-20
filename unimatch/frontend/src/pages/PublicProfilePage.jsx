@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import { CoupleIcon, DateIcon } from '../components/ui/SocialIcons';
+import { useAuth } from '../context/AuthContext';
 
 const PublicProfilePage = () => {
+    const { user: currentUser } = useAuth();
     const { userId } = useParams(); // Get userId from URL parameter
     const [profile, setProfile] = useState(null);
     const [reviews, setReviews] = useState([]); // State for reviews
@@ -11,6 +13,11 @@ const PublicProfilePage = () => {
     const [error, setError] = useState(''); // Combined error for profile
     const [reviewsLoading, setReviewsLoading] = useState(true); // Separate loading for reviews
     const [reviewsError, setReviewsError] = useState(''); // Separate error for reviews
+    // --- Invite to Team State ---
+    const [myTeams, setMyTeams] = useState([]);
+    const [inviteTeamId, setInviteTeamId] = useState('');
+    const [inviteStatus, setInviteStatus] = useState('');
+    const [inviteLoading, setInviteLoading] = useState(false);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -42,11 +49,23 @@ const PublicProfilePage = () => {
             }
         };
 
+        // Fetch current user's teams for inviting
+        const fetchMyTeams = async () => {
+            try {
+                const res = await api.get('/teams/my-teams');
+                setMyTeams(res.data);
+                if (res.data.length > 0) setInviteTeamId(res.data[0]._id);
+            } catch (err) {
+                // Ignore error, just don't show invite UI
+            }
+        };
+
         if (userId) {
             fetchProfile();
             fetchUserReviews(); // Fetch reviews as well
+            if (currentUser) fetchMyTeams();
         }
-    }, [userId]);
+    }, [userId, currentUser]);
 
     // Display loading state
     if (loading) {
@@ -135,7 +154,7 @@ const PublicProfilePage = () => {
                             <div className="w-20 h-20 bg-gradient-sunset rounded-full flex items-center justify-center text-white text-3xl font-bold">
                                 {profile.name?.charAt(0)?.toUpperCase() || 'U'}
                             </div>
-        <div>
+                            <div>
                                 <h3 className="text-2xl font-semibold text-neutral-800">{profile.name}</h3>
                                 <div className="flex items-center gap-2 flex-wrap mt-2">
                                     <span className="badge badge-primary">{profile.university}</span>
@@ -146,6 +165,46 @@ const PublicProfilePage = () => {
                                 <p className="text-neutral-500 text-sm mt-2">
                                     Member since {new Date(profile.createdAt).toLocaleDateString()}
                                 </p>
+                                {/* --- Invite to Team UI --- */}
+                                {currentUser && myTeams.length > 0 && profile.email && profile._id !== currentUser._id && (
+                                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                        <div className="flex flex-col md:flex-row md:items-center gap-2">
+                                            <select
+                                                value={inviteTeamId}
+                                                onChange={e => setInviteTeamId(e.target.value)}
+                                                className="form-input px-3 py-2 rounded border border-blue-300"
+                                                disabled={inviteLoading}
+                                            >
+                                                {myTeams.map(team => (
+                                                    <option key={team._id} value={team._id}>{team.name}</option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                className="btn btn-primary"
+                                                disabled={inviteLoading || !inviteTeamId}
+                                                onClick={async () => {
+                                                    setInviteLoading(true);
+                                                    setInviteStatus('');
+                                                    try {
+                                                        const res = await api.post('/invitations/email', {
+                                                            teamId: inviteTeamId,
+                                                            inviteeEmail: profile.email,
+                                                            inviteeName: profile.name
+                                                        });
+                                                        setInviteStatus('Invitation sent!');
+                                                    } catch (err) {
+                                                        setInviteStatus(err.response?.data?.message || 'Failed to send invitation.');
+                                                    } finally {
+                                                        setInviteLoading(false);
+                                                    }
+                                                }}
+                                            >
+                                                {inviteLoading ? 'Sending...' : 'Invite to Team via Email'}
+                                            </button>
+                                        </div>
+                                        {inviteStatus && <div className="mt-2 text-sm text-blue-700">{inviteStatus}</div>}
+                                    </div>
+                                )}
                             </div>
                         </div>
                         {profile.bio && (

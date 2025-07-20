@@ -309,38 +309,58 @@ router.post('/email', protect, async (req, res, next) => {
         console.log(`Team: "${team.name}" (${team.university})`);
         console.log(`Inviter: ${inviter.name} (${inviter.email}) - ${inviter.university}`);
 
-        // Authorization: Check if inviter is the creator
-        if (!team.createdBy.equals(inviterId)) {
-            console.log(`❌ Authorization failed: ${inviterId} is not creator of team ${teamId}`);
-            return res.status(403).json({ message: 'Only the team creator can send invitations.' });
+        // Authorization: Check if inviter is a team member (not just creator)
+        if (!isTeamMember(team, inviterId)) {
+            console.log(`❌ Authorization failed: ${inviterId} is not a member of team ${teamId}`);
+            return res.status(403).json({ message: 'Only team members can send invitations.' });
         }
 
-        // Check if someone with this email already has an account and is a team member
+        // Check if someone with this email already has an account
         const existingUser = await User.findOne({ email: inviteeEmail });
+        let invitation;
         if (existingUser) {
-            // Check if they're already a member
-            if (isTeamMember(team, existingUser._id)) {
-                console.log(`❌ User with email ${inviteeEmail} is already a member`);
-                return res.status(400).json({ message: 'A user with this email is already a member of this team.' });
-            }
-
-            // Check for existing pending invitation
-            const existingInvite = await Invitation.findOne({ 
+            // If user exists, check for existing pending invitation
+            invitation = await Invitation.findOne({ 
                 team: teamId, 
                 invitee: existingUser._id, 
                 status: 'pending' 
             });
-            if (existingInvite) {
-                console.log(`❌ Existing pending invitation found for email ${inviteeEmail}`);
-                return res.status(400).json({ message: 'An invitation is already pending for this user.' });
+            if (invitation) {
+                // Resend the invitation email for the existing pending invite
+                console.log(`🔄 Resending invitation email for existing pending invite`);
+            } else {
+                // Create a new invitation
+                invitation = new Invitation({
+                    team: teamId,
+                    inviter: inviterId,
+                    invitee: existingUser._id,
+                    status: 'pending'
+                });
+                await invitation.save();
+                console.log(`✅ Invitation created: ${invitation._id}`);
             }
-
-            // If user exists, redirect to regular invitation workflow
-            console.log(`🔄 User exists, redirecting to regular invitation workflow`);
-            return res.status(400).json({ 
-                message: 'A user with this email already exists. Please use the regular invitation feature to invite existing users.',
-                userExists: true,
-                userId: existingUser._id
+            // Send email notification (as internal user)
+            const emailResult = await sendInvitationEmail(
+                inviter.name,
+                team.name,
+                inviteeEmail,
+                false // This is for existing users
+            );
+            if (!emailResult.success) {
+                console.error(`❌ Failed to send invitation email:`, emailResult.error);
+                return res.status(500).json({ 
+                    message: 'Failed to send invitation email. Please try again later.',
+                    error: emailResult.error
+                });
+            }
+            // Populate for response
+            const populatedInvite = await Invitation.findById(invitation._id)
+                .populate('team', 'name')
+                .populate('inviter', 'name')
+                .populate('invitee', 'name');
+            return res.status(201).json({
+                ...populatedInvite.toObject(),
+                emailSent: emailResult.success
             });
         }
 

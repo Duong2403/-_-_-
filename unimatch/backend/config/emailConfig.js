@@ -12,7 +12,7 @@ const createEmailTransporter = () => {
   }
 
   try {
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
@@ -120,103 +120,19 @@ const createInvitationEmailTemplate = (inviterName, teamName, inviteeEmail, isEx
   }
 };
 
-// Send invitation email
+// Dummy sendInvitationEmail function (no email sent)
 const sendInvitationEmail = async (inviterName, teamName, inviteeEmail, isExternalInvite = false) => {
-  const transporter = createEmailTransporter();
-  
-  if (!transporter) {
-    const missingVars = ['GMAIL_USER', 'GMAIL_APP_PASSWORD'].filter(varName => !process.env[varName]);
-    const errorMessage = `Gmail service not configured. Missing environment variables: ${missingVars.join(', ')}. Please check GMAIL_SETUP.md for setup instructions.`;
-    console.warn('⚠️ Email service not configured, skipping email notification');
-    return { success: false, error: errorMessage };
-  }
-
-  try {
-    const emailTemplate = createInvitationEmailTemplate(inviterName, teamName, inviteeEmail, isExternalInvite);
-    
-    const mailOptions = {
-      from: `"UniMatch Team" <${process.env.GMAIL_USER}>`,
-      to: inviteeEmail,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html
-    };
-
-    console.log(`📧 Sending invitation email to ${inviteeEmail}...`);
-    const result = await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent successfully:`, result.messageId);
-    
-    return { success: true, messageId: result.messageId };
-  } catch (error) {
-    console.error('❌ Error sending invitation email:', error);
-    return { success: false, error: error.message };
-  }
+  console.log(`[DUMMY] Would send invitation email to ${inviteeEmail} for team ${teamName}`);
+  return { success: true, messageId: 'dummy' };
 };
 
-// Send join request notification email
+// Dummy sendJoinRequestNotificationEmail function (no email sent)
 const sendJoinRequestNotificationEmail = async (applicantName, teamName, teamCreatorEmail) => {
-  const transporter = createEmailTransporter();
-  
-  if (!transporter) {
-    console.warn('⚠️ Email service not configured, skipping email notification');
-    return { success: false, error: 'Email service not configured' };
-  }
-
-  try {
-    const appUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    
-    const mailOptions = {
-      from: `"UniMatch Team" <${process.env.GMAIL_USER}>`,
-      to: teamCreatorEmail,
-      subject: `New join request for "${teamName}" team`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-            <h1 style="margin: 0; font-size: 28px;">📋 New Join Request</h1>
-          </div>
-          
-          <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
-            <p style="font-size: 18px; color: #333; margin-bottom: 20px;">
-              Hi Team Leader! 👋
-            </p>
-            
-            <p style="font-size: 16px; color: #555; line-height: 1.6; margin-bottom: 25px;">
-              <strong>${applicantName}</strong> has requested to join your team <strong>"${teamName}"</strong>.
-            </p>
-            
-            <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea; margin: 25px 0;">
-              <p style="color: #666; margin-bottom: 0;">
-                You can review and respond to this join request by logging into your UniMatch account.
-              </p>
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${appUrl}/teams" 
-                 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block; font-size: 16px;">
-                Review Request
-              </a>
-            </div>
-          </div>
-          
-          <div style="text-align: center; padding: 20px; color: #888; font-size: 12px;">
-            <p>This notification was sent via UniMatch.</p>
-          </div>
-        </div>
-      `
-    };
-
-    console.log(`📧 Sending join request notification to ${teamCreatorEmail}...`);
-    const result = await transporter.sendMail(mailOptions);
-    console.log(`✅ Join request notification sent successfully:`, result.messageId);
-    
-    return { success: true, messageId: result.messageId };
-  } catch (error) {
-    console.error('❌ Error sending join request notification:', error);
-    return { success: false, error: error.message };
-  }
+  console.log(`[DUMMY] Would send join request notification email to ${teamCreatorEmail} for team ${teamName}`);
+  return { success: true, messageId: 'dummy' };
 };
 
 module.exports = {
-  createEmailTransporter,
   sendInvitationEmail,
   sendJoinRequestNotificationEmail
 }; 

@@ -69,7 +69,7 @@ function Login() {
 
             {/* Error Message */}
             {error && (
-              <div className="bg-error bg-opacity-10 border border-error text-error p-4 rounded-lg mb-6">
+              <div style={{ background: '#e53e3e', color: 'white', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
                 {error}
               </div>
             )}
